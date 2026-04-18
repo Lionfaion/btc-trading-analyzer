@@ -200,6 +200,97 @@
             color: #666;
             margin-top: 10px;
         }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            flex: 1;
+            background: rgba(20, 30, 60, 0.5);
+            border: 1px solid #1aff1a;
+            color: #e0e0e0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .input-group input::placeholder {
+            color: #666;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(26, 255, 26, 0.3);
+        }
+
+        .liquidation-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .liquidation-level {
+            background: rgba(26, 255, 26, 0.05);
+            border: 1px solid #1aff1a;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .liquidation-level-label {
+            font-size: 0.8em;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .liquidation-level-value {
+            font-size: 1.3em;
+            color: #1aff1a;
+            font-weight: bold;
+        }
+
+        .liquidation-level-percent {
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .heatmap-container {
+            background: rgba(20, 30, 60, 0.5);
+            border: 1px solid #1aff1a;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .heatmap-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+            padding: 5px;
+            border-bottom: 1px solid rgba(26, 255, 26, 0.1);
+        }
+
+        .heatmap-row:last-child {
+            border-bottom: none;
+        }
+
+        .heatmap-level {
+            color: #888;
+        }
+
+        .heatmap-volume {
+            color: #1aff1a;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -207,6 +298,18 @@
         <div class="header">
             <h1>₿ BTC TRADING ANALYZER</h1>
             <p>Order Flow & Liquidation Analysis</p>
+        </div>
+
+        <!-- API Keys Section -->
+        <div class="card" style="margin-bottom: 30px;">
+            <h2>🔑 Configuración de APIs</h2>
+            <div class="input-group">
+                <input type="password" id="coingglassApiKey" placeholder="API Key de Coinglass (opcional)" />
+                <button class="button" onclick="saveApiKey()">Guardar</button>
+            </div>
+            <div class="info" style="font-size: 0.75em;">
+                💾 Las claves se guardan solo en tu navegador (localStorage)
+            </div>
         </div>
 
         <div class="grid">
@@ -230,19 +333,54 @@
                 <div class="timestamp" id="priceTimestamp"></div>
             </div>
 
-            <!-- Instructions Card -->
+            <!-- Liquidations Card -->
             <div class="card">
-                <h2>ℹ️ Estado</h2>
-                <div class="info">
-                    <strong>Paso 1 de 6:</strong><br>
-                    ✅ Obtener precio actual de BTC desde Binance API<br><br>
-                    Próximos pasos:<br>
-                    ⏳ Obtener niveles de liquidación<br>
-                    ⏳ Integrar Claude API<br>
-                    ⏳ Análisis de order flow<br>
-                    ⏳ Interfaz de API key<br>
-                    ⏳ Diseño terminal completo
+                <h2>📉 Liquidaciones BTC</h2>
+                <div class="liquidation-grid">
+                    <div class="liquidation-level">
+                        <div class="liquidation-level-label">Short Longs</div>
+                        <div class="liquidation-level-value" id="shortLevel">--</div>
+                        <div class="liquidation-level-percent" id="shortPercent"></div>
+                    </div>
+                    <div class="liquidation-level">
+                        <div class="liquidation-level-label">Short Shorts</div>
+                        <div class="liquidation-level-value" id="longLevel">--</div>
+                        <div class="liquidation-level-percent" id="longPercent"></div>
+                    </div>
                 </div>
+                <button class="button" onclick="fetchLiquidations()" style="margin-top: 15px; width: 100%;">
+                    Fetch Liquidations
+                </button>
+                <div class="status">
+                    <div class="status-dot"></div>
+                    <span id="liquidationStatus">Listo para conectar</span>
+                </div>
+                <div class="timestamp" id="liquidationTimestamp"></div>
+            </div>
+        </div>
+
+        <!-- Heatmap Section -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>🔥 Heatmap de Liquidaciones</h2>
+            <div class="heatmap-container" id="heatmapContainer">
+                <div style="text-align: center; padding: 20px; color: #888;">
+                    Clic en "Fetch Liquidations" para cargar datos
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Card -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>ℹ️ Estado del Progreso</h2>
+            <div class="info">
+                <strong>Paso 2 de 6:</strong><br>
+                ✅ Obtener precio actual de BTC desde Binance API<br>
+                ✅ Obtener niveles de liquidación desde Coinglass API<br><br>
+                Próximos pasos:<br>
+                ⏳ Integrar Claude API<br>
+                ⏳ Análisis de order flow<br>
+                ⏳ Interfaz mejorada de APIs<br>
+                ⏳ Diseño terminal completo
             </div>
         </div>
 
@@ -324,11 +462,167 @@
             }
         }
 
-        // Fetch price on page load
-        document.addEventListener('DOMContentLoaded', fetchBTCPrice);
+        // Save API key to localStorage
+        function saveApiKey() {
+            const apiKey = document.getElementById('coingglassApiKey').value;
+            if (apiKey) {
+                localStorage.setItem('coingglassApiKey', apiKey);
+                alert('✅ API Key guardada en localStorage');
+            } else {
+                localStorage.removeItem('coingglassApiKey');
+                alert('API Key removida');
+            }
+        }
 
-        // Auto-refresh every 5 seconds
+        // Load API key from localStorage on page load
+        function loadApiKey() {
+            const saved = localStorage.getItem('coingglassApiKey');
+            if (saved) {
+                document.getElementById('coingglassApiKey').value = saved;
+            }
+        }
+
+        // Fetch liquidation data from Coinglass
+        async function fetchLiquidations() {
+            const statusElement = document.getElementById('liquidationStatus');
+            const shortLevelElement = document.getElementById('shortLevel');
+            const longLevelElement = document.getElementById('longLevel');
+            const shortPercentElement = document.getElementById('shortPercent');
+            const longPercentElement = document.getElementById('longPercent');
+            const heatmapContainer = document.getElementById('heatmapContainer');
+            const timestampElement = document.getElementById('liquidationTimestamp');
+            const errorContainer = document.getElementById('errorContainer');
+
+            try {
+                errorContainer.innerHTML = '';
+                statusElement.innerHTML = '<div class="loading"></div> Obteniendo liquidaciones...';
+                shortLevelElement.textContent = '--';
+                longLevelElement.textContent = '--';
+
+                const apiKey = localStorage.getItem('coingglassApiKey');
+
+                // Try free endpoint first (no API key needed)
+                const headers = apiKey ? { 'coinglassSecret': apiKey } : {};
+
+                // Fetch liquidation data from Coinglass API
+                const response = await fetch('https://open-api.coinglass.com/public/v2/liquidation/realtime?symbol=BTC', {
+                    headers: headers
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Coinglass API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.data) {
+                    throw new Error('No liquidation data available');
+                }
+
+                const liquidationData = data.data;
+
+                // Extract long and short liquidation levels
+                const longLiquidations = liquidationData.long || 0;
+                const shortLiquidations = liquidationData.short || 0;
+                const totalLiquidations = longLiquidations + shortLiquidations;
+
+                // Format liquidation values
+                const longPercent = totalLiquidations > 0 ? ((longLiquidations / totalLiquidations) * 100).toFixed(1) : 0;
+                const shortPercent = totalLiquidations > 0 ? ((shortLiquidations / totalLiquidations) * 100).toFixed(1) : 0;
+
+                longLevelElement.textContent = formatNumber(longLiquidations);
+                shortLevelElement.textContent = formatNumber(shortLiquidations);
+                longPercentElement.textContent = `${longPercent}%`;
+                shortPercentElement.textContent = `${shortPercent}%`;
+
+                // Update status
+                statusElement.innerHTML = '✅ Conectado a Coinglass';
+                statusElement.style.color = '#1aff1a';
+
+                // Update timestamp
+                const now = new Date();
+                timestampElement.textContent = `Actualizado: ${now.toLocaleTimeString('es-ES')}`;
+
+                // Fetch heatmap data if available
+                await fetchHeatmapData(headers);
+
+            } catch (error) {
+                console.error('Error fetching liquidations:', error);
+
+                statusElement.innerHTML = '⚠️ Error o API no disponible';
+                statusElement.style.color = '#ff9900';
+
+                heatmapContainer.innerHTML = `
+                    <div style="padding: 10px; color: #ff9900; font-size: 0.85em;">
+                        <strong>Nota:</strong> El endpoint gratuito de Coinglass podría no estar disponible.
+                        ${localStorage.getItem('coingglassApiKey') ? 'Verifica tu API Key.' : 'Intenta guardar tu API Key de Coinglass.'}
+                    </div>
+                `;
+            }
+        }
+
+        // Fetch heatmap data for liquidation zones
+        async function fetchHeatmapData(headers) {
+            try {
+                const response = await fetch('https://open-api.coinglass.com/public/v2/liquidationHeatmap?symbol=BTC', {
+                    headers: headers
+                });
+
+                if (!response.ok) {
+                    console.warn('Heatmap endpoint not available');
+                    return;
+                }
+
+                const data = await response.json();
+                const heatmapContainer = document.getElementById('heatmapContainer');
+
+                if (data.data && data.data.length > 0) {
+                    let html = '';
+                    const topLevels = data.data.slice(0, 10);
+
+                    topLevels.forEach(level => {
+                        const price = level.price ? level.price.toFixed(2) : 'N/A';
+                        const volume = formatNumber(level.amount || 0);
+                        html += `
+                            <div class="heatmap-row">
+                                <span class="heatmap-level">$${price}</span>
+                                <span class="heatmap-volume">${volume}</span>
+                            </div>
+                        `;
+                    });
+
+                    heatmapContainer.innerHTML = html;
+                }
+            } catch (error) {
+                console.warn('Could not fetch heatmap:', error.message);
+            }
+        }
+
+        // Format large numbers with commas and suffixes
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toFixed(0);
+        }
+
+        // Fetch price on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadApiKey();
+            fetchBTCPrice();
+        });
+
+        // Auto-refresh price every 5 seconds
         setInterval(fetchBTCPrice, 5000);
+
+        // Auto-refresh liquidations every 10 seconds if API key is present
+        setInterval(() => {
+            if (localStorage.getItem('coingglassApiKey')) {
+                fetchLiquidations();
+            }
+        }, 10000);
     </script>
 </body>
 </html>
