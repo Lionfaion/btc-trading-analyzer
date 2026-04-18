@@ -462,8 +462,11 @@
                 statusElement.innerHTML = '<div class="loading"></div> Obteniendo precio...';
                 priceElement.textContent = '--';
 
-                // Fetch from Binance API through backend proxy
-                const response = await fetch('/api/btc-price');
+                // Fetch from Binance API (direct, public endpoint)
+                const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT', {
+                    method: 'GET',
+                    mode: 'cors'
+                });
 
                 if (!response.ok) {
                     throw new Error(`Error Binance: ${response.status}`);
@@ -480,8 +483,11 @@
 
                 priceElement.textContent = formattedPrice;
 
-                // Fetch 24h stats for change through backend proxy
-                const statsResponse = await fetch('/api/btc-stats');
+                // Fetch 24h stats for change
+                const statsResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', {
+                    method: 'GET',
+                    mode: 'cors'
+                });
                 const statsData = await statsResponse.json();
 
                 const priceChangePercent = parseFloat(statsData.priceChangePercent);
