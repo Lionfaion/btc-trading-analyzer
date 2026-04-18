@@ -6,24 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BTC Trading Analyzer** is a complete 6-phase trading platform for analyzing, backtesting, and executing cryptocurrency trading strategies on Bybit. It integrates real-time price data, historical candles, technical indicators, and automated order execution.
+**BTC Trading Analyzer** → Complete 6-Phase Trading Platform (in development)
 
-**Tech Stack:**
-- **Frontend:** Vanilla JS + TradingView Lightweight Charts
-- **Backend:** Vercel Serverless Functions (Node.js)
-- **Database:** PostgreSQL (Supabase) with Row-Level Security
-- **Trading Exchange:** Bybit API (testnet default)
-- **Data Sources:** CoinGecko (free OHLCV), Bybit (live prices)
+**Current Status (2026-04-18):**
+- ✅ Basic infrastructure deployed on Railway.app
+- ✅ Database schema created (Supabase PostgreSQL)
+- 🔄 Phases 0-1 in progress (Database + Historical data)
+- 📋 Phases 2-6 architecture planned (see PHASE_ROADMAP below)
 
-**Key Architecture:** 6-layer modular system where each phase builds on the previous:
-1. **Database & Auth** - PostgreSQL schema, Supabase client, JWT middleware
-2. **Historical Data** - CoinGecko sync, 2-year candles for BTC/ETH/SOL
-3. **Backtest Engine** - RSI(14) + MACD(12/26/9) + Bollinger(20,2) + metrics
-4. **Bybit Integration** - HMAC-SHA256 auth, market orders, position tracking
-5. **Charts & Indicators** - TradingView candlesticks with overlay indicators
-6. **Order Flow & Stats** - Liquidation analysis, trade history, performance metrics
+**Real Current Tech Stack:**
+- **Frontend:** Vanilla JS served via simple Node.js HTTP server
+- **Backend:** Node.js HTTP server (server.js) with serverless-ready structure
+- **Database:** PostgreSQL (Supabase)
+- **Deployment:** Railway.app (auto-deploy from GitHub)
+- **Data Sources:** CoinGecko (free OHLCV), Bybit, Binance
 
-**Total Deliverables:** 47 files across 6 phases, ~10k+ lines of code.
+**Key Architecture:** 6-phase modular system where each builds on the previous:
+1. **Database & Auth** - PostgreSQL schema, Supabase setup
+2. **Historical Data** - CoinGecko sync, multi-asset OHLCV candles
+3. **Backtest Engine** - RSI + MACD + Bollinger indicators + metrics
+4. **Bybit Integration** - HMAC-SHA256 auth, order execution
+5. **Charts & Indicators** - TradingView Lightweight Charts integration
+6. **Order Flow & Stats** - Liquidation zones, trade history, alerts
 
 ---
 
@@ -31,130 +35,179 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 btc-trading-analyzer/
-├── api/                           # Vercel serverless functions
-│   ├── db/                        # Database CRUD (Supabase)
-│   │   ├── init.js                # Supabase client + JWT auth
-│   │   ├── trade.js               # Trade CRUD + auto P&L
-│   │   ├── candles.js             # OHLCV batch upsert
-│   │   ├── strategy.js            # Strategy CRUD
-│   │   ├── analysis.js            # Backtest results
-│   │   └── bybit.js               # Encrypted credentials
-│   ├── bybit/                     # Bybit API integration
-│   │   ├── auth.js                # BybitAuth class (HMAC signing)
-│   │   ├── place-order.js         # Market order execution
+├── server.js                      # Node.js HTTP server (Railway entry point)
+├── package.json                   # npm dependencies + start script
+├── Procfile                       # Railway process definition
+├── railway.json                   # Railway service config
+├── .env.local                     # Environment variables (local dev)
+├── .gitignore
+├── db-schema.sql                  # PostgreSQL DDL (6 tables)
+├── index.html                     # Main SPA frontend
+├── vercel.json                    # Config file (not used, kept for reference)
+│
+├── api/                           # API endpoints (serverless-ready structure)
+│   ├── analyze.js                 # Claude analysis integration
+│   ├── btc-price.js               # Real-time BTC price
+│   ├── btc-stats.js               # Trading statistics
+│   ├── binance-price.js           # Binance price feed
+│   ├── coinglass.js               # CoinGlass liquidations
+│   ├── liquidations.js            # Liquidation analysis
+│   │
+│   ├── db/                        # Database CRUD operations
+│   │   ├── init.js                # Supabase client initialization
+│   │   ├── trade.js               # Trade insert/update/fetch
+│   │   ├── candles.js             # OHLCV candle operations
+│   │   ├── strategy.js            # Strategy management
+│   │   └── analysis.js            # Analysis history
+│   │
+│   ├── historical/                # Historical data collection (Phase 1)
+│   │   ├── sync.js                # Initial data load
+│   │   └── update.js              # Hourly updates
+│   │
+│   ├── backtest/                  # Backtest engine (Phase 2 - Not Started)
+│   │   └── run.js                 # Backtest execution
+│   │
+│   ├── bybit/                     # Bybit integration (Phase 3 - Not Started)
+│   │   ├── auth.js                # HMAC-SHA256 signing
+│   │   ├── place-order.js         # Order execution
 │   │   ├── cancel-order.js        # Order cancellation
-│   │   ├── positions.js           # Open positions + PnL
+│   │   ├── positions.js           # Position tracking
 │   │   └── balance.js             # Wallet balance
-│   ├── backtest/
-│   │   └── run.js                 # Backtest execution endpoint
-│   ├── indicators/                # Technical indicators (pure functions)
-│   │   ├── rsi.js                 # RSI(14) + oversold/overbought
-│   │   ├── macd.js                # MACD(12,26,9) + crossover
-│   │   └── bollinger.js           # Bollinger Bands(20,2)
-│   ├── historical/                # Data collection
-│   │   ├── sync.js                # Initial 2-year data load
-│   │   └── update.js              # Hourly candle updates
-│   ├── analysis/
-│   │   └── order-flow.js          # Liquidation zones + trapped positions
-│   ├── stats/
-│   │   └── calculate.js           # Win rate, profit factor, Sharpe, etc.
-│   ├── alerts/
-│   │   └── send.js                # Email alerts (5 types)
-│   ├── automation/
-│   │   └── run.js                 # Strategy scheduler
-│   └── market-price.js            # Current price endpoint
+│   │
+│   ├── indicators/                # Technical indicators (Phase 2)
+│   │   ├── rsi.js                 # RSI calculation
+│   │   ├── macd.js                # MACD calculation
+│   │   └── bollinger.js           # Bollinger Bands
+│   │
+│   ├── analysis/                  # Analysis tools (Phase 5 - Not Started)
+│   │   └── order-flow.js          # Liquidation zones
+│   │
+│   ├── alerts/                    # Alert system (Phase 5 - Not Started)
+│   │   └── send.js                # Email notifications
+│   │
+│   └── automation/                # Strategy automation (Phase 3 - Not Started)
+│       └── run.js                 # Scheduler
+│
 ├── lib/                           # Shared utilities
 │   ├── coingecko-client.js        # CoinGecko API wrapper
-│   ├── backtest-engine.js         # Core backtest logic
-│   ├── chart-renderer.js          # TradingView Lightweight Charts
-│   ├── indicators-visual.js       # Visual indicator calculations
-│   └── chart-data-helper.js       # Data fetch, cache, utilities
-├── scripts/
-│   └── update-hourly.js           # Cron job for hourly updates
-├── examples/
-│   ├── backtest-example.js        # 5 backtest usage examples
-│   └── chart-integration-example.js # 8 chart integration examples
-├── db-schema.sql                  # PostgreSQL DDL (6 tables, indexes, RLS)
-├── setup.js                       # Deployment validation script
-├── index.html                     # Main UI (all phases integrated)
-├── vercel.json                    # Vercel config
-├── .env.local.example             # Environment template
-├── CLAUDE.md                      # This file
-└── PHASE_*_README.md / GUIDES     # Phase-specific documentation
+│   ├── backtest-engine.js         # Backtest algorithm
+│   ├── indicators-visual.js       # Indicator calculations
+│   └── chart-renderer.js          # Chart rendering
+│
+└── .git/                          # Git repository (synced with GitHub)
 ```
+
+**GitHub Repository:** github.com/Lionfaion/btc-trading-analyzer  
+**Railway Project:** btc-trading-analyzer (auto-deploys on git push)  
+**Production URL:** https://btc-trading-analyzer-production.up.railway.app
 
 ---
 
 ## Key Commands
 
-### Setup & Deployment
+### Local Development
 
 ```bash
-# Validate all 47 files exist and phases are complete
-node setup.js
+# Install dependencies
+npm install
 
-# Deploy to Vercel
-vercel deploy --prod
+# Start local server (port 3000)
+npm start
 
-# Run local development server
-vercel dev
+# Server runs at: http://localhost:3000
 ```
 
-### Database Initialization
-
-1. Create Supabase project: https://supabase.com/dashboard
-2. In Supabase SQL Editor, paste contents of `db-schema.sql`
-3. Get credentials: Project Settings → API → URL + anon key
-4. Create `.env.local`:
-   ```
-   SUPABASE_URL=https://xxxxx.supabase.co
-   SUPABASE_ANON_KEY=eyJxxx...
-   ANTHROPIC_API_KEY=sk-ant-xxx...
-   ```
-
-### Historical Data Sync
+### Deployment to Railway
 
 ```bash
-# Download 2-year BTC/ETH/SOL candles (1h)
+# 1. Ensure code is committed to git
+git add .
+git commit -m "Your message"
+
+# 2. Push to GitHub
+git push origin main
+
+# 3. Railway auto-deploys (watch at: railway.app dashboard)
+# No additional commands needed - Railway watches GitHub repo and redeploys on every push
+
+# 4. View deployment logs
+# Railway Dashboard → Project → btc-trading-analyzer → Logs tab
+```
+
+### Database Setup (One-time)
+
+1. Create Supabase project: https://supabase.com/dashboard
+2. Copy entire `db-schema.sql` file
+3. In Supabase dashboard → SQL Editor → paste and execute
+4. Get credentials:
+   - **Project URL:** supabase.com → Settings → API → Project URL
+   - **Anon Key:** supabase.com → Settings → API → `anon` public key
+   - **Service Role Key:** supabase.com → Settings → API → `service_role` secret key
+5. Add to Railway environment:
+   - Railway Dashboard → btc-trading-analyzer → Variables → Add:
+     ```
+     SUPABASE_URL = (your URL from step 4)
+     SUPABASE_ANON_KEY = (your anon key from step 4)
+     SUPABASE_SERVICE_ROLE_KEY = (your service role key from step 4)
+     ANTHROPIC_API_KEY = (optional - for Claude analysis)
+     ```
+
+### Testing Endpoints (Local)
+
+```bash
+# Get real-time BTC price
+curl http://localhost:3000/api/btc-price
+
+# Get trading statistics
+curl http://localhost:3000/api/btc-stats
+
+# Historical data sync (Phase 1)
 curl -X POST http://localhost:3000/api/historical/sync \
   -H "Content-Type: application/json" \
   -d '{"symbol":"BTCUSDT"}'
-
-# Update latest candle (run hourly via cron)
-curl -X POST http://localhost:3000/api/historical/update \
-  -H "Content-Type: application/json" \
-  -d '{"symbol":"BTCUSDT"}'
 ```
 
-### Backtest a Strategy
+---
 
-```bash
-curl -X POST http://localhost:3000/api/backtest/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "symbol": "BTCUSDT",
-    "strategyType": "rsi_macd",
-    "startDate": "2024-01-01",
-    "endDate": "2025-01-01",
-    "rsiPeriod": 14,
-    "rsiOversold": 30,
-    "macdFast": 12,
-    "stopLoss": 2.5,
-    "takeProfit": 5
-  }'
-```
+## Implementation Status by Phase
 
-### Test Bybit Connection
+### ✅ PHASE 0: Database & Auth (In Progress)
+- Database schema created in Supabase
+- 6 core tables: users, strategies, candles_ohlcv, trades, analysis_history, bybit_credentials
+- Database ready but not yet integrated into API endpoints
+- Next: Add API routes in `/api/db/`
 
-```bash
-curl -X POST http://localhost:3000/api/bybit/balance \
-  -H "Content-Type: application/json" \
-  -d '{
-    "apiKey": "your_key",
-    "apiSecret": "your_secret",
-    "isTestnet": true
-  }'
-```
+### ✅ PHASE 1: Historical Data Collection (Planned)
+- `/api/historical/sync.js` - endpoint for initial data load
+- `/api/historical/update.js` - endpoint for hourly candle updates
+- `lib/coingecko-client.js` - CoinGecko API integration
+- Next: Implement and test data collection pipeline
+
+### 🔄 PHASE 2: Backtest Engine (Not Started)
+- Will include: `api/backtest/run.js`
+- Indicators: RSI, MACD, Bollinger Bands
+- Metrics: P&L, win rate, Sharpe ratio, max drawdown
+- Placeholder files exist, logic not implemented yet
+
+### 🔄 PHASE 3: Bybit Integration (Not Started)
+- Will include: `/api/bybit/` endpoints
+- HMAC-SHA256 signing for authentication
+- Order execution, position tracking
+- Requires: Bybit API credentials (testnet or live)
+
+### 🔄 PHASE 4: Charts & Indicators (Not Started)
+- Will use: TradingView Lightweight Charts (CDN)
+- Integration in: `lib/chart-renderer.js`, `index.html`
+
+### 🔄 PHASE 5: Order Flow & Stats (Not Started)
+- Liquidation zone analysis
+- Trade history and performance metrics
+- Email alerts
+
+### 🔄 PHASE 6: Optimizations (Not Started)
+- Performance caching
+- Mobile responsiveness
+- Error handling and resilience
 
 ---
 
@@ -162,15 +215,15 @@ curl -X POST http://localhost:3000/api/bybit/balance \
 
 ### Database Architecture (Supabase PostgreSQL)
 
-**6 Core Tables:**
-- `users` - Optional multi-user support (currently single-user mode)
-- `candles_ohlcv` - OHLC+volume with 1h+ timeframes, unique constraint on (symbol, timeframe, open_time)
-- `trades` - Entry/exit prices, P&L calculated on insert/update
-- `strategies` - Strategy definitions (name, parameters as JSONB, rules text)
-- `analysis_history` - Backtest results + Claude analysis
-- `bybit_credentials` - API keys encrypted with bcrypt
+**6 Core Tables (db-schema.sql):**
+- `users` - User accounts and profiles
+- `candles_ohlcv` - OHLC+volume candles (1h+ timeframes, indexed by symbol+timeframe+open_time)
+- `trades` - Trade entries/exits with P&L
+- `strategies` - Strategy definitions and parameters
+- `analysis_history` - Backtest and analysis results
+- `bybit_credentials` - Encrypted API key storage
 
-**Row-Level Security (RLS):** All tables restricted to authenticated users (enable in Supabase UI).
+**Status:** Schema created in Supabase, not yet exposed via API endpoints
 
 ### Backtest Engine Logic (`lib/backtest-engine.js`)
 
@@ -192,45 +245,69 @@ Core algorithm:
 
 **Note:** Backtest is deterministic - same inputs always produce same results (useful for validation).
 
-### Bybit API Integration (`api/bybit/auth.js`)
+### Server Architecture (server.js)
 
-**Authentication:**
-- HMAC-SHA256 signature on timestamp + params
-- All requests include `X-BAPI-TIMESTAMP` and `X-BAPI-SIGN` headers
-- BybitAuth class auto-signs all requests
+**Current Implementation:**
+- Node.js built-in `http` module (no Express dependency)
+- Serves `/` → returns `index.html` (SPA)
+- Serves static files (`.js`, `.css`, `.json`) with correct MIME types
+- Falls back to `index.html` for SPA routing (404 → index.html)
+- Includes error logging for debugging
 
-**Order Flow:**
-1. Fetch current price from `/v5/market/tickers`
-2. Calculate SL (price × 0.98) and TP (price × 1.05)
-3. Place MARKET order via `/v5/order/create`
-4. Default: USDT linear perpetuals, 1x leverage, IOC (immediate-or-cancel)
+**Why this approach:**
+- Railway.app compatible (requires explicit HTTP server)
+- Minimal dependencies (only @supabase/supabase-js)
+- Easy to expand with API endpoints (add routing logic)
+- Serverless-ready structure
 
-**Critical:** All code defaults to `isTestnet: true` - **must verify before live trading**.
+**How it works:**
+1. Listen on PORT env variable (Railway injects this)
+2. Route requests:
+   - `GET /` → serve index.html
+   - `GET /static/*` → serve files
+   - `POST/GET /api/*` → (future: delegate to handlers)
+   - `GET /anything` → fallback to index.html (SPA)
+3. Return proper Content-Type headers
 
-### Chart Rendering (`lib/chart-renderer.js`)
+### Planned: Bybit API Integration
 
-Uses TradingView Lightweight Charts library:
-- Candlestick series (OHLC)
-- Overlay series for indicators (RSI, MACD, Bollinger)
-- Zoom/pan support with auto-scaling
-- localStorage caching (60-min TTL) to reduce API calls
+**Will implement in Phase 3:**
+- HMAC-SHA256 signing for request authentication
+- `/api/bybit/balance` - fetch account balance
+- `/api/bybit/positions` - track open positions
+- `/api/bybit/place-order` - execute market/limit orders
+- Default to testnet (`isTestnet: true`)
 
-**Data Flow:**
-1. Frontend calls `/api/market-price` for current price
-2. Fetches OHLCV from `/api/db/candles` (with timeframe param)
-3. Calculates indicators in `lib/indicators-visual.js`
-4. Renders chart with `chart-renderer.js`
+**Example structure (not yet implemented):**
+```javascript
+// api/bybit/auth.js (Phase 3)
+const crypto = require('crypto');
 
-### Alert System (`api/alerts/send.js`)
+class BybitAuth {
+  constructor(apiKey, apiSecret, isTestnet = true) {
+    this.apiKey = apiKey;
+    this.apiSecret = apiSecret;
+    this.baseUrl = isTestnet 
+      ? 'https://testnet.bybit.com'
+      : 'https://api.bybit.com';
+  }
 
-5 alert types:
-1. `STRATEGY_SIGNAL` - BUY/SELL recommendation
-2. `LIQUIDATION_ALERT` - Trapped longs/shorts detected
-3. `TRADE_EXECUTED` - Order filled on Bybit
-4. `POSITION_CLOSED` - TP/SL hit
-5. `DAILY_SUMMARY` - End-of-day stats
-
-**Note:** SendGrid integration is a placeholder (requires API key in `.env.local`). Email logic is ready; just need credentials.
+  sign(params) {
+    const timestamp = Date.now();
+    const queryString = Object.entries(params)
+      .sort()
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&');
+    
+    const signature = crypto
+      .createHmac('sha256', this.apiSecret)
+      .update(queryString + timestamp)
+      .digest('hex');
+    
+    return { signature, timestamp };
+  }
+}
+```
 
 ---
 
@@ -277,94 +354,200 @@ vercel deploy --prod
 
 ---
 
-## Testing Checklist
+## Verification Checklist
 
-**PHASE 0 - Database:**
-- [ ] Supabase project created
-- [ ] db-schema.sql executed (no SQL errors)
-- [ ] Tables visible in Supabase UI (6 tables created)
-- [ ] RLS enabled on all tables
+### ✅ Immediate (Infrastructure)
+- [x] GitHub repository created (github.com/Lionfaion/btc-trading-analyzer)
+- [x] Railway project connected (auto-deploy from GitHub)
+- [x] Supabase project created and configured
+- [x] db-schema.sql executed in Supabase
+- [x] Environment variables added to Railway
+- [x] server.js serving index.html without 502 errors
 
-**PHASE 1 - Historical Data:**
-- [ ] `/api/historical/sync` downloads 100+ candles
-- [ ] Candles table populated with correct OHLCV data
-- [ ] Asset selector dropdown shows BTC/ETH/SOL
+### 🔄 PHASE 0 (Database)
+- [ ] Verify all 6 tables exist in Supabase dashboard
+- [ ] Test: Direct query in Supabase SQL Editor returns data
+- [ ] Test: `/api/db/trade` endpoint (when implemented)
 
-**PHASE 2 - Backtest:**
-- [ ] Create strategy with default params
-- [ ] Run backtest on 3-month date range
-- [ ] Results show trades list, P&L, metrics
-- [ ] Backtest with different indicators produces different results
+### 🔄 PHASE 1 (Historical Data)
+- [ ] Implement `/api/historical/sync` endpoint
+- [ ] Test: Fetch 100+ candles from CoinGecko
+- [ ] Verify: candles_ohlcv table populates
+- [ ] Test: Asset dropdown in UI loads data
 
-**PHASE 3 - Bybit:**
-- [ ] Connect testnet credentials (test key/secret from Bybit)
-- [ ] `/api/bybit/balance` returns account balance
-- [ ] `/api/bybit/positions` returns open positions (usually empty on testnet)
-- [ ] Place 1 test order, verify in Bybit UI, cancel it
+### 🔄 PHASE 2 (Backtest)
+- [ ] Implement backtest engine (`api/backtest/run.js`)
+- [ ] Test: Run backtest with RSI strategy
+- [ ] Verify: Results include trades list, P&L, Sharpe ratio
 
-**PHASE 4 - Charts:**
-- [ ] Charts panel loads without errors
-- [ ] Candlesticks render with correct OHLC data
-- [ ] Indicators (RSI, MACD) overlay on chart
-- [ ] Zoom/pan works smoothly
+### 🔄 PHASE 3 (Bybit)
+- [ ] Create Bybit testnet account
+- [ ] Implement `/api/bybit/balance` endpoint
+- [ ] Test: Fetch Bybit account balance
+- [ ] Test: Place test order on testnet
 
-**PHASE 5 - Order Flow & Stats:**
-- [ ] Stats dashboard calculates win rate, profit factor
-- [ ] Order flow detects liquidation zones
-- [ ] Trade history table shows all past trades with filtering
+### 🔄 PHASE 4 (Charts)
+- [ ] Integrate TradingView Lightweight Charts
+- [ ] Test: Candlestick chart renders OHLC data
+- [ ] Test: RSI/MACD indicators overlay correctly
+
+### 🔄 PHASE 5 (Order Flow & Stats)
+- [ ] Implement stats calculations
+- [ ] Display trade history and performance metrics
+- [ ] Set up email alerts
 
 ---
 
-## Common Issues & Solutions
+## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| `SUPABASE_URL not found` | .env.local missing | Copy `.env.local.example` to `.env.local` + fill credentials |
-| `Invalid API credentials` | Wrong Bybit key/secret | Verify testnet API key from Bybit account settings |
-| `No candles in backtest` | historical/sync not run | Execute `node setup.js` → follow Phase 1 instructions |
-| Chart doesn't load | localStorage quota exceeded | Clear browser cache + retry |
-| Backtest runs slow | Too many candles fetched | Reduce date range or increase batch processing |
-| Email alerts not sent | SendGrid key missing | Add `SENDGRID_API_KEY` to .env.local (or implement custom mailer) |
+### 502 Application Failed to Respond
+**Cause:** No HTTP server running or crashes on startup  
+**Solution:**
+1. Check Railway logs: Dashboard → Logs tab
+2. Verify `server.js` exists and syntax is valid
+3. Check `npm start` command in package.json
+4. Verify `PORT` environment variable (Railway sets it automatically)
+
+### Supabase Connection Errors
+**Cause:** Wrong credentials in environment variables  
+**Solution:**
+1. Verify exact credentials in Railway Variables
+2. Compare with Supabase project settings
+3. Test manually: `curl -H "Authorization: Bearer ANON_KEY" SUPABASE_URL/rest/v1/candles`
+
+### CORS Errors in Browser Console
+**Cause:** API requests blocked (future issue when adding `/api/` routes)  
+**Solution:**
+1. Add CORS headers in server.js response
+2. Use Supabase REST client (handles CORS automatically)
+3. Test: `curl -H "Origin: http://localhost:3000" ...`
+
+### Static Files Not Loading
+**Cause:** Wrong MIME type or file path  
+**Solution:**
+1. Check server.js MIME types mapping
+2. Add missing extensions as needed
+3. Verify file exists: `npm start` should show logs
+
+### Database Schema Not Executing
+**Cause:** Typos or Supabase SQL Editor issues  
+**Solution:**
+1. Copy-paste entire `db-schema.sql` file (not line-by-line)
+2. Check for syntax errors in Supabase SQL output
+3. Try breaking into smaller SQL statements if needed
 
 ---
 
 ## Performance Considerations
 
-- **Candles table:** Index on (symbol, timeframe, open_time) for fast queries
-- **Chart rendering:** Cache candles in localStorage (60-min TTL) to avoid re-fetching
-- **Backtest:** Pre-calculate indicators in batches, not per-candle
-- **Bybit API:** 10 req/sec rate limit - queue requests if automating multiple orders
+### Current (MVP)
+- Static file serving: cached by Railway edge network
+- JavaScript execution: runs in browser (no backend processing)
+- Database queries: will use Supabase indexes on (symbol, timeframe, open_time)
+
+### Future Optimizations (Phase 6)
+- Implement caching for frequently accessed candles
+- Add serverless function response caching (100+ candle requests)
+- Batch database operations (e.g., bulk candle inserts)
+- Optimize chart rendering for 1000+ candles (TradingView is efficient)
+- Rate limiting for external API calls (CoinGecko: 10-50 req/min)
 
 ---
 
-## Disabled Features (Production Readiness)
+## Development Notes
 
-Currently disabled for MVP (enable in `api/alerts/send.js`):
-- Email notifications (requires SendGrid)
-- Two-factor authentication (can add via Supabase Auth)
-- Position liquidation notifications (requires WebSocket stream from Bybit)
+### Adding a New API Endpoint
+1. Create file: `/api/yourfeature.js`
+2. Export handler: `module.exports = (req, res) => { ... }`
+3. Server will auto-route (add routing logic to server.js if needed)
+4. Test: `curl http://localhost:3000/api/yourfeature`
+5. Deploy: `git push origin main` → Railway auto-deploys
 
-Enable these after MVP validation.
+### Database Operations
+- Use Supabase REST API (authenticated with ANON_KEY)
+- Example: `GET https://SUPABASE_URL/rest/v1/candles?symbol=eq.BTC`
+- Supabase client available: `const { createClient } = require('@supabase/supabase-js')`
+
+### Adding npm Dependencies
+**Keep minimal!** Each dependency increases Railway deployment time.
+- Only add if truly necessary
+- Prefer built-in Node modules
+- Examples of good choices: @supabase/supabase-js, crypto (built-in)
+
+### Testing Changes Locally
+```bash
+npm start
+# Edit a file
+# Restart server (CTRL+C then `npm start`)
+# Visit http://localhost:3000
+# Check console logs
+```
 
 ---
 
-## Phase Completion Status
+## Current Limitations & Known Issues
 
-✅ **PHASE 0:** Database, Supabase client, JWT auth, credential encryption  
-✅ **PHASE 1:** CoinGecko sync, 2-year historical data, multi-asset support  
-✅ **PHASE 2:** Backtest engine, RSI+MACD+Bollinger, metrics (Sharpe, drawdown, etc.)  
-✅ **PHASE 3:** Bybit auth, market orders, position tracking, testnet default  
-✅ **PHASE 4:** TradingView charts, indicator overlays, zoom/pan  
-✅ **PHASE 5:** Order flow analysis, stats dashboard, trade history, alerts  
+### MVP Scope
+- Single-user only (no multi-user auth yet)
+- Static UI (Vanilla JS, will become reactive in Phase 2-3)
+- Limited error handling (will improve with Phase 6)
+- No real-time updates (polling-based only)
 
-**Next (optional):** Multi-user auth, WebSocket live orders, advanced strategy optimizer
+### Not Yet Implemented
+- Bybit live trading (testnet ready, live not tested)
+- WebSocket connections (using HTTP polling instead)
+- Email notifications (infrastructure ready, needs SendGrid key)
+- Advanced charting (TradingView library ready, UI integration pending)
+- Mobile responsiveness (desktop-first for MVP)
 
 ---
 
-## References
+## Quick Reference
 
-- **Bybit API:** https://bybit-exchange.github.io/docs/v5/intro
-- **Supabase Docs:** https://supabase.com/docs
-- **CoinGecko API:** https://www.coingecko.com/en/api
-- **TradingView Lightweight Charts:** https://tradingview.github.io/lightweight-charts/
-- **Vercel Functions:** https://vercel.com/docs/serverless-functions/overview
+| Component | Status | Files |
+|-----------|--------|-------|
+| **HTTP Server** | ✅ Working | server.js, Procfile |
+| **Database** | ✅ Ready | db-schema.sql, Supabase |
+| **Frontend** | ✅ Serving | index.html, server.js |
+| **Historical Data** | 🔄 Planned | api/historical/*, lib/coingecko-client.js |
+| **Backtest Engine** | 🔄 Planned | api/backtest/*, lib/backtest-engine.js |
+| **Bybit Trading** | 🔄 Planned | api/bybit/* |
+| **Charts** | 🔄 Planned | lib/chart-renderer.js, index.html |
+| **Alerts** | 🔄 Planned | api/alerts/* |
+| **Stats/Analytics** | 🔄 Planned | api/analysis/* |
+
+---
+
+## References & Documentation
+
+- **Railway Deployment:** https://docs.railway.app/getting-started
+- **Supabase PostgreSQL:** https://supabase.com/docs/guides/database
+- **Bybit Trading API:** https://bybit-exchange.github.io/docs/v5/intro
+- **CoinGecko Free API:** https://www.coingecko.com/en/api/documentation
+- **TradingView Charts:** https://tradingview.github.io/lightweight-charts/
+- **Node.js Built-in Modules:** https://nodejs.org/api/
+- **npm Package Registry:** https://www.npmjs.com/
+
+---
+
+## Next Steps
+
+1. **Verify current deployment works**
+   - Check https://btc-trading-analyzer-production.up.railway.app loads index.html
+   - Check Railway logs show no startup errors
+
+2. **Implement Phase 1 (Historical Data)**
+   - Create `/api/historical/sync.js` endpoint
+   - Integrate CoinGecko API wrapper
+   - Test candle data collection
+
+3. **Expand API routes**
+   - Add `/api/db/` endpoints (trade CRUD, etc.)
+   - Add `/api/backtest/` endpoints
+   - Add `/api/bybit/` endpoints
+
+4. **Update Frontend (index.html)**
+   - Add asset selector dropdown
+   - Add backtest panel
+   - Integrate TradingView charts
+   - Add stats/analysis panels

@@ -1,77 +1,48 @@
-import { ASSETS, fetchOHLCHistory } from '../../lib/coingecko-client.js';
+const CoinGeckoClient = require('../../lib/coingecko-client');
+const { insertCandles } = require('../db/init');
 
-const DB_FILE = process.env.DB_FILE || './data/ohlc.json';
-const fs = require('fs').promises;
-const path = require('path');
-
-async function loadDatabase() {
-  try {
-    const content = await fs.readFile(DB_FILE, 'utf-8');
-    return JSON.parse(content);
-  } catch {
-    return { BTC: [], ETH: [], SOL: [], lastSync: null };
-  }
-}
-
-async function saveDatabase(data) {
-  const dir = path.dirname(DB_FILE);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
-}
-
-async function syncHistoricalData(assetSymbol = 'BTC', days = 730) {
-  try {
-    const asset = ASSETS[assetSymbol];
-    if (!asset) {
-      throw new Error(`Asset ${assetSymbol} not supported`);
-    }
-
-    console.log(`Syncing ${assetSymbol} historical data (${days} days)...`);
-
-    const ohlcData = await fetchOHLCHistory(asset.id, days);
-
-    const db = await loadDatabase();
-    db[assetSymbol] = ohlcData;
-    db.lastSync = new Date().toISOString();
-
-    await saveDatabase(db);
-
-    console.log(`Synced ${ohlcData.length} candles for ${assetSymbol}`);
-    return {
-      success: true,
-      asset: assetSymbol,
-      candles: ohlcData.length,
-      lastSync: db.lastSync
-    };
-  } catch (error) {
-    console.error(`Sync error for ${assetSymbol}:`, error.message);
-    return {
-      success: false,
-      asset: assetSymbol,
-      error: error.message
-    };
-  }
-}
-
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    return;
   }
 
-  try {
-    const { asset = 'BTC', days = 730 } = req.body;
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const params = JSON.parse(body || '{}');
+      const symbol = params.symbol || 'BTCUSDT';
+      const days = params.days || 365;
 
-    const result = await syncHistoricalData(asset, days);
+      console.log(`🔄 Starting sync for ${symbol} (${days} days)...`);
 
-    if (!result.success) {
-      return res.status(500).json(result);
+      const client = new CoinGeckoClient();
+      const candles = await client.getHistoricalCandles(symbol, days);
+
+      if (candles.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No candles fetched' }));
+        return;
+      }
+
+      await insertCandles(candles);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        symbol,
+        candleCount: candles.length,
+        dateRange: {
+          from: candles[0]?.open_time,
+          to: candles[candles.length - 1]?.open_time
+        }
+      }));
+    } catch (e) {
+      console.error('❌ Sync error:', e.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
     }
-
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message,
-      success: false
-    });
-  }
-}
+  });
+};

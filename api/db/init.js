@@ -1,62 +1,54 @@
-// api/db/init.js - Supabase initialization and connection
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    'Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_ANON_KEY in vercel.json env vars.'
-  );
+  console.error('❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+  process.exit(1);
 }
 
-// Singleton Supabase client
-let supabase = null;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-export function getSupabaseClient() {
-  if (!supabase) {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
+async function insertCandles(candles) {
+  console.log(`💾 Inserting ${candles.length} candles...`);
 
-// Get authenticated user from request headers
-export async function getAuthUser(req) {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new Error('Missing or invalid authorization header');
-  }
+  try {
+    const { data, error } = await supabase
+      .from('candles_ohlcv')
+      .upsert(candles, { onConflict: 'symbol,timeframe,open_time' });
 
-  const token = authHeader.substring(7);
-  const supabase = getSupabaseClient();
-
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
-    throw new Error('Unauthorized: Invalid token');
-  }
-
-  return data.user;
-}
-
-// Utility: handle API errors with proper HTTP status codes
-export function handleError(error, statusCode = 500) {
-  console.error('[DB Error]', error);
-  return new Response(
-    JSON.stringify({
-      error: error.message || 'Internal Server Error',
-      code: error.code || 'UNKNOWN_ERROR',
-    }),
-    {
-      status: statusCode,
-      headers: { 'Content-Type': 'application/json' },
+    if (error) {
+      throw new Error(error.message);
     }
-  );
+
+    console.log(`✅ Inserted ${candles.length} candles`);
+    return data;
+  } catch (e) {
+    console.error('❌ Insert error:', e.message);
+    throw e;
+  }
 }
 
-// Utility: success response
-export function successResponse(data, statusCode = 200) {
-  return new Response(JSON.stringify(data), {
-    status: statusCode,
-    headers: { 'Content-Type': 'application/json' },
-  });
+async function getCandles(symbol, limit = 100) {
+  try {
+    const { data, error } = await supabase
+      .from('candles_ohlcv')
+      .select('*')
+      .eq('symbol', symbol)
+      .order('open_time', { ascending: false })
+      .limit(limit);
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  } catch (e) {
+    console.error('❌ Fetch error:', e.message);
+    throw e;
+  }
 }
+
+module.exports = {
+  supabase,
+  insertCandles,
+  getCandles
+};

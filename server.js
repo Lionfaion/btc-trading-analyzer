@@ -1,64 +1,97 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 
-const server = http.createServer((req, res) => {
-  // API routes - handle them first
-  if (req.url.startsWith('/api/')) {
-    // For API calls, Railway will forward to serverless functions
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'API endpoint not found' }));
+console.log('🚀 Starting server on port', PORT);
+
+const server = http.createServer(async (req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
+
+  console.log(`📍 ${req.method} ${pathname}`);
+
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
     return;
   }
 
-  // Static files
-  let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
-
-  // Security: prevent directory traversal
-  if (!filePath.startsWith(__dirname)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  // Serve the file
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      // If file not found, serve index.html (SPA)
-      fs.readFile(path.join(__dirname, 'index.html'), (err, indexData) => {
-        if (err) {
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end('Internal Server Error');
-          return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(indexData);
-      });
+  // API routes
+  if (pathname.startsWith('/api/')) {
+    try {
+      const apiPath = path.join(__dirname, 'api', pathname.slice(5) + '.js');
+      const apiHandler = require(apiPath);
+      await apiHandler(req, res, parsedUrl);
+      return;
+    } catch (e) {
+      console.error('API error:', e.message);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Endpoint not found: ' + pathname }));
       return;
     }
+  }
 
-    // Determine content type
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.html': 'text/html',
-      '.js': 'text/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml'
-    };
+  // Handle root
+  if (pathname === '/' || pathname === '') {
+    try {
+      const indexPath = path.join(__dirname, 'index.html');
+      const html = fs.readFileSync(indexPath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    } catch (e) {
+      console.error('Error reading index.html:', e.message);
+      res.writeHead(500);
+      res.end('Error loading index.html');
+      return;
+    }
+  }
 
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
-    res.end(data);
-  });
+  // Serve static files
+  try {
+    let filePath = path.join(__dirname, pathname);
+
+    if (fs.existsSync(filePath) && !filePath.includes('api')) {
+      const data = fs.readFileSync(filePath);
+      const ext = path.extname(filePath);
+      const mimes = {
+        '.js': 'application/javascript',
+        '.css': 'text/css',
+        '.html': 'text/html',
+        '.json': 'application/json'
+      };
+      res.writeHead(200, { 'Content-Type': mimes[ext] || 'application/octet-stream' });
+      res.end(data);
+      return;
+    }
+  } catch (e) {
+    console.error('Error serving file:', e.message);
+  }
+
+  // Default: serve index.html for SPA routing
+  try {
+    const indexPath = path.join(__dirname, 'index.html');
+    const html = fs.readFileSync(indexPath, 'utf8');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+  } catch (e) {
+    res.writeHead(500);
+    res.end('Server error');
+  }
 });
 
-server.listen(PORT, () => {
-  console.log(`✅ BTC Trading Analyzer running on port ${PORT}`);
-  console.log(`📍 Open: http://localhost:${PORT}`);
+server.on('error', (err) => {
+  console.error('❌ Server error:', err);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
