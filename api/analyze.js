@@ -1,5 +1,3 @@
-const https = require('https');
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -23,19 +21,25 @@ Liquidaciones en Long: ${liquidationData.longLiquidations || 0}
 Liquidaciones en Short: ${liquidationData.shortLiquidations || 0}
 Timeframe: ${timeframe || '1H'}
 
-Proporciona:
-1. Viés direccional (Bullish/Bearish)
-2. Zonas de riesgo principales
-3. Detección de trampas institucionales (si aplica)
-4. Nivel de confianza del análisis (%)
-5. Recomendación de acción (1-2 líneas)
-
-Responde en JSON sin markdown.`;
+Proporciona un análisis en este formato JSON exacto (sin markdown):
+{
+  "bias": "Bullish o Bearish",
+  "risk_zones": "Descripción de zonas de riesgo",
+  "institutional_traps": "Descripción de posibles trampas",
+  "confidence": "70",
+  "action": "Recomendación de acción"
+}`;
 
   try {
-    const claudeRequest = new Promise((resolve, reject) => {
-      const data = JSON.stringify({
-        model: 'claude-opus-4-1',
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250514',
         max_tokens: 500,
         messages: [
           {
@@ -43,45 +47,17 @@ Responde en JSON sin markdown.`;
             content: prompt
           }
         ]
-      });
-
-      const options = {
-        hostname: 'api.anthropic.com',
-        port: 443,
-        path: '/v1/messages',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': data.length,
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        }
-      };
-
-      const request = https.request(options, (response) => {
-        let body = '';
-        response.on('data', (chunk) => { body += chunk; });
-        response.on('end', () => {
-          if (response.statusCode === 200) {
-            try {
-              const parsed = JSON.parse(body);
-              const content = parsed.content[0].text;
-              resolve(content);
-            } catch (e) {
-              reject(new Error('Failed to parse Claude response'));
-            }
-          } else {
-            reject(new Error(`Claude API error: ${response.statusCode}`));
-          }
-        });
-      });
-
-      request.on('error', reject);
-      request.write(data);
-      request.end();
+      })
     });
 
-    const analysis = await claudeRequest;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Claude API error: ${response.status} - ${error.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    const analysis = data.content[0].text;
+
     return res.status(200).json({ analysis });
 
   } catch (error) {
