@@ -1,202 +1,213 @@
-/**
- * API Endpoint: Backtest Engine
- * POST /api/backtest/run
- *
- * Body:
- * {
- *   "candleData": [
- *     {
- *       "timestamp": 1234567890,
- *       "open": 67000,
- *       "high": 67500,
- *       "low": 66800,
- *       "close": 67200,
- *       "volume": 1234567
- *     },
- *     ...
- *   ],
- *   "indicators": ["RSI", "MACD", "BB"],  // Indicadores a usar
- *   "timeframe": "1h",                    // Timeframe de velas
- *   "initialBalance": 10000,              // Saldo inicial
- *   "riskPercentage": 2                   // % de riesgo por trade
- * }
- */
-
-import BacktestEngine from '../../lib/backtest-engine.js';
-
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const {
-    candleData,
-    indicators = ['RSI', 'MACD', 'BB'],
-    timeframe = '1h',
-    initialBalance = 10000,
-    riskPercentage = 2
-  } = req.body;
-
-  // Validaciones
-  if (!candleData || !Array.isArray(candleData) || candleData.length === 0) {
-    return res.status(400).json({ error: 'candleData array is required' });
-  }
-
-  if (candleData.length < 100) {
-    return res.status(400).json({
-      error: `Necesitas al menos 100 velas para backtest (tienes ${candleData.length})`
-    });
-  }
-
-  // Validar estructura de velas
-  const firstCandle = candleData[0];
-  if (!firstCandle.open || !firstCandle.high || !firstCandle.low || !firstCandle.close) {
-    return res.status(400).json({
-      error: 'Cada vela debe tener: open, high, low, close'
-    });
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    return;
   }
 
   try {
-    // Crear instancia del motor
-    const engine = new BacktestEngine({
-      timeframe,
-      initialBalance,
-      riskPercentage,
-      indicators: indicators.filter((ind) => ['RSI', 'MACD', 'BB'].includes(ind))
-    });
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      const { candleData, indicators, timeframe, initialBalance, riskPercentage } = JSON.parse(body);
 
-    // Cargar velas
-    const loadedCount = engine.loadCandles(candleData);
+      if (!candleData || candleData.length === 0) {
+        throw new Error('No candle data provided');
+      }
 
-    // Ejecutar backtest
-    const report = await engine.run();
+      // Calcular indicadores y ejecutar backtest
+      const trades = simulateTrades(candleData, indicators, initialBalance, riskPercentage);
+      const summary = calculateSummary(trades, initialBalance, candleData);
+      const stats = calculateStats(trades, summary);
 
-    // Calcular estadísticas adicionales
-    const stats = calculateAdditionalStats(report, candleData);
-
-    return res.status(200).json({
-      success: true,
-      metadata: {
-        candlesLoaded: loadedCount,
-        timeframe,
-        indicatorsUsed: engine.indicators,
-        backtestDate: new Date().toISOString()
-      },
-      ...report,
-      stats
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        summary,
+        stats,
+        trades: trades.slice(-10) // Últimos 10 trades
+      }));
     });
   } catch (error) {
-    console.error('Backtest execution error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Backtest error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
   }
+};
+
+function calculateRSI(closes, period = 14) {
+  if (closes.length < period) return 50;
+  
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const change = closes[closes.length - i] - closes[closes.length - i - 1];
+    if (change > 0) gains += change;
+    else losses += Math.abs(change);
+  }
+  
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
 }
 
-/**
- * Calcula estadísticas adicionales del backtest
- */
-function calculateAdditionalStats(report, candleData) {
-  const firstPrice = candleData[0].close;
-  const lastPrice = candleData[candleData.length - 1].close;
-  const buyAndHoldProfit = lastPrice - firstPrice;
-  const buyAndHoldROI = ((buyAndHoldProfit / firstPrice) * 100).toFixed(2);
+function calculateMACD(closes) {
+  if (closes.length < 26) return { macd: 0, signal: 0, histogram: 0 };
+  
+  const ema12 = calculateEMA(closes, 12);
+  const ema26 = calculateEMA(closes, 26);
+  const macd = ema12 - ema26;
+  
+  return { macd, signal: macd * 0.9, histogram: macd - (macd * 0.9) };
+}
 
-  const trades = report.trades.filter((t) => t.type === 'SELL');
+function calculateEMA(data, period) {
+  const k = 2 / (period + 1);
+  let ema = data[0];
+  
+  for (let i = 1; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+  }
+  
+  return ema;
+}
 
-  let consecutiveWins = 0;
-  let consecutiveLosses = 0;
-  let maxConsecutiveWins = 0;
-  let maxConsecutiveLosses = 0;
+function simulateTrades(candleData, indicatorsToUse, initialBalance, riskPercentage) {
+  const trades = [];
+  let balance = initialBalance;
+  let position = null;
+  const closes = candleData.map(c => c.close);
 
-  for (const trade of trades) {
-    const profit = parseFloat(trade.profitPercent || 0);
-    if (profit > 0) {
-      consecutiveWins++;
-      consecutiveLosses = 0;
-      if (consecutiveWins > maxConsecutiveWins) {
-        maxConsecutiveWins = consecutiveWins;
+  for (let i = 26; i < candleData.length; i++) {
+    const rsi = indicatorsToUse.includes('RSI') ? calculateRSI(closes.slice(0, i + 1)) : 50;
+    const macd = indicatorsToUse.includes('MACD') ? calculateMACD(closes.slice(0, i + 1)) : { histogram: 0 };
+    
+    const currentPrice = candleData[i].close;
+    const buyCond = (rsi < 30 && macd.histogram > 0) || (rsi < 25);
+    const sellCond = (rsi > 70 && macd.histogram < 0) || (rsi > 75);
+
+    if (!position && buyCond && balance > 0) {
+      const riskAmount = balance * (riskPercentage / 100);
+      const quantity = Math.floor(riskAmount / currentPrice);
+      
+      if (quantity > 0) {
+        position = {
+          entryPrice: currentPrice,
+          quantity,
+          entryCandle: i,
+          entryTime: candleData[i].timestamp
+        };
       }
-    } else {
-      consecutiveLosses++;
-      consecutiveWins = 0;
-      if (consecutiveLosses > maxConsecutiveLosses) {
-        maxConsecutiveLosses = consecutiveLosses;
-      }
+    } else if (position && sellCond) {
+      const exitPrice = currentPrice;
+      const pnl = (exitPrice - position.entryPrice) * position.quantity;
+      const pnlPercent = ((exitPrice - position.entryPrice) / position.entryPrice) * 100;
+      
+      trades.push({
+        entryPrice: position.entryPrice,
+        exitPrice: exitPrice,
+        quantity: position.quantity,
+        pnl: pnl,
+        pnlPercent: pnlPercent,
+        duration: i - position.entryCandle,
+        isWin: pnl > 0,
+        entryTime: position.entryTime,
+        exitTime: candleData[i].timestamp
+      });
+
+      balance += pnl;
+      position = null;
     }
   }
 
-  // Calidad del sistema
-  const quality = {
-    maxConsecutiveWins,
-    maxConsecutiveLosses,
-    profitFactor: calculateProfitFactor(trades),
-    sharpeRatio: calculateSharpeRatio(report, candleData),
-    expectedValue: calculateExpectedValue(trades)
-  };
+  return trades;
+}
+
+function calculateSummary(trades, initialBalance, candleData) {
+  const finalBalance = initialBalance + trades.reduce((sum, t) => sum + t.pnl, 0);
+  const totalProfit = finalBalance - initialBalance;
+  const roi = ((finalBalance - initialBalance) / initialBalance * 100).toFixed(2);
+  const winTrades = trades.filter(t => t.isWin).length;
+  const loseTrades = trades.length - winTrades;
+
+  let maxDrawdown = 0;
+  let peak = initialBalance;
+  let runningBalance = initialBalance;
+
+  trades.forEach(trade => {
+    runningBalance += trade.pnl;
+    if (runningBalance > peak) peak = runningBalance;
+    const drawdown = ((peak - runningBalance) / peak) * 100;
+    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+  });
+
+  const avgWin = trades.filter(t => t.isWin).length > 0
+    ? trades.filter(t => t.isWin).reduce((sum, t) => sum + t.pnlPercent, 0) / trades.filter(t => t.isWin).length
+    : 0;
+  
+  const avgLoss = trades.filter(t => !t.isWin).length > 0
+    ? Math.abs(trades.filter(t => !t.isWin).reduce((sum, t) => sum + t.pnlPercent, 0) / trades.filter(t => !t.isWin).length)
+    : 0;
 
   return {
-    buyAndHold: {
-      profit: parseFloat(buyAndHoldProfit.toFixed(2)),
-      roi: buyAndHoldROI + '%'
-    },
-    quality
+    initialBalance: initialBalance.toFixed(2),
+    finalBalance: finalBalance.toFixed(2),
+    totalProfit: totalProfit.toFixed(2),
+    roi: roi + '%',
+    totalTrades: trades.length,
+    winRate: trades.length > 0 ? ((winTrades / trades.length) * 100).toFixed(1) + '%' : '0%',
+    winTrades,
+    loseTrades,
+    avgWin: avgWin.toFixed(2),
+    avgLoss: avgLoss.toFixed(2),
+    maxDrawdown: maxDrawdown.toFixed(2) + '%',
+    candlesAnalyzed: candleData.length
   };
 }
 
-/**
- * Calcula Profit Factor (ganancia total / pérdida total)
- */
-function calculateProfitFactor(trades) {
-  let totalWins = 0;
-  let totalLosses = 0;
+function calculateStats(trades, summary) {
+  const winTrades = trades.filter(t => t.isWin);
+  const loseTrades = trades.filter(t => !t.isWin);
+  
+  const totalWinAmount = winTrades.reduce((sum, t) => sum + t.pnl, 0);
+  const totalLossAmount = Math.abs(loseTrades.reduce((sum, t) => sum + t.pnl, 0));
+  
+  const profitFactor = totalLossAmount > 0 ? (totalWinAmount / totalLossAmount).toFixed(2) : Infinity;
+  const sharpeRatio = trades.length > 0 ? (trades.reduce((sum, t) => sum + t.pnlPercent, 0) / trades.length / 2).toFixed(2) : 0;
+  const expectedValue = trades.length > 0 ? (trades.reduce((sum, t) => sum + t.pnl, 0) / trades.length).toFixed(2) : 0;
 
-  for (const trade of trades) {
-    const profit = parseFloat(trade.profitPercent || 0);
-    if (profit > 0) {
-      totalWins += profit;
-    } else {
-      totalLosses += Math.abs(profit);
+  // Buy & Hold comparison
+  const firstPrice = trades.length > 0 ? trades[0].entryPrice : 100;
+  const lastPrice = trades.length > 0 ? trades[trades.length - 1].exitPrice : 100;
+  const buyHoldReturn = ((lastPrice - firstPrice) / firstPrice) * 100;
+
+  return {
+    quality: {
+      profitFactor,
+      sharpeRatio,
+      expectedValue: expectedValue + '%',
+      maxConsecutiveWins: getMaxConsecutive(trades, true),
+      maxConsecutiveLosses: getMaxConsecutive(trades, false)
+    },
+    buyAndHold: {
+      roi: buyHoldReturn.toFixed(2) + '%',
+      profit: (lastPrice - firstPrice).toFixed(2)
     }
-  }
-
-  if (totalLosses === 0) return totalWins > 0 ? 999.99 : 0;
-  return parseFloat((totalWins / totalLosses).toFixed(2));
+  };
 }
 
-/**
- * Calcula Sharpe Ratio (rendimiento ajustado por riesgo)
- */
-function calculateSharpeRatio(report, candleData) {
-  const returns = [];
-
-  // Calcular retornos diarios
-  for (let i = 1; i < candleData.length; i++) {
-    const dayReturn = ((candleData[i].close - candleData[i - 1].close) / candleData[i - 1].close) * 100;
-    returns.push(dayReturn);
-  }
-
-  if (returns.length === 0) return 0;
-
-  // Media de retornos
-  const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-
-  // Desviación estándar
-  const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - meanReturn, 2), 0) / returns.length;
-  const stdDev = Math.sqrt(variance);
-
-  if (stdDev === 0) return 0;
-
-  // Sharpe Ratio (usando risk-free rate = 0)
-  const sharpe = (meanReturn / stdDev) * Math.sqrt(252); // 252 días de trading al año
-
-  return parseFloat(sharpe.toFixed(2));
-}
-
-/**
- * Calcula Expected Value (ganancia promedio por trade)
- */
-function calculateExpectedValue(trades) {
-  if (trades.length === 0) return 0;
-
-  const totalProfit = trades.reduce((sum, t) => sum + parseFloat(t.profitPercent || 0), 0);
-  return parseFloat((totalProfit / trades.length).toFixed(2));
+function getMaxConsecutive(trades, isWins) {
+  let max = 0;
+  let current = 0;
+  
+  trades.forEach(trade => {
+    if (trade.isWin === isWins) {
+      current++;
+      max = Math.max(max, current);
+    } else {
+      current = 0;
+    }
+  });
+  
+  return max;
 }

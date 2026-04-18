@@ -638,8 +638,8 @@
                 statusElement.innerHTML = '<div class="loading"></div> Obteniendo precio...';
                 priceElement.textContent = '--';
 
-                // Fetch from Vercel proxy endpoint
-                const response = await fetch(`/api/market-price?asset=${asset}`);
+                // Fetch from price endpoint
+                const response = await fetch(`/api/price?symbol=${asset}USDT`);
 
                 if (!response.ok) {
                     throw new Error(`Error: ${response.status}`);

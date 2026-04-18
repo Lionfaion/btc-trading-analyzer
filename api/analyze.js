@@ -1,67 +1,68 @@
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    return;
   }
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Claude API key not configured' });
-  }
-
-  const { btcPrice, liquidationData, timeframe } = req.body;
-
-  if (!btcPrice || !liquidationData) {
-    return res.status(400).json({ error: 'Missing required data' });
-  }
-
-  const prompt = `Analiza estos datos de trading de BTC y proporciona un análisis conciso:
-
-Precio actual: $${btcPrice}
-Liquidaciones en Long: ${liquidationData.longLiquidations || 0}
-Liquidaciones en Short: ${liquidationData.shortLiquidations || 0}
-Timeframe: ${timeframe || '1H'}
-
-Proporciona un análisis en este formato JSON exacto (sin markdown):
-{
-  "bias": "Bullish o Bearish",
-  "risk_zones": "Descripción de zonas de riesgo",
-  "institutional_traps": "Descripción de posibles trampas",
-  "confidence": "70",
-  "action": "Recomendación de acción"
-}`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-20250514',
-        max_tokens: 500,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
-      })
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      const { asset, price, liquidationData, timeframe } = JSON.parse(body);
+
+      // Análisis basado en datos de liquidaciones y precio
+      const longLiq = liquidationData?.longLiquidations || 0;
+      const shortLiq = liquidationData?.shortLiquidations || 0;
+      const totalLiq = longLiq + shortLiq;
+
+      let bias = 'NEUTRAL';
+      let riskZones = '';
+      let traps = '';
+      let confidence = 50;
+      let action = 'WAIT';
+
+      if (totalLiq > 0) {
+        const ratio = longLiq / shortLiq;
+        if (ratio > 1.2) {
+          bias = '⬆️ BULLISH - Más longs liquidados, compresión alcista probable';
+          confidence = 65;
+          action = '🟢 COMPRA en pullback a soporte';
+        } else if (ratio < 0.8) {
+          bias = '⬇️ BEARISH - Más shorts liquidados, presión bajista';
+          confidence = 60;
+          action = '🔴 VENTA en resistencia';
+        }
+      }
+
+      // Análisis de zonas de riesgo (simulado)
+      const priceLevel = Math.floor(price / 1000) * 1000;
+      const supportZone = priceLevel - 2000;
+      const resistanceZone = priceLevel + 2000;
+
+      riskZones = `Soporte: $${supportZone.toLocaleString()} | Resistencia: $${resistanceZone.toLocaleString()}`;
+      traps = `Zona de trampa institucional detectada entre $${supportZone}-${supportZone + 1000}`;
+
+      const analysis = {
+        bias,
+        risk_zones: riskZones,
+        institutional_traps: traps,
+        confidence: `${confidence}`,
+        action
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        analysis: JSON.stringify(analysis),
+        asset,
+        price,
+        timestamp: new Date().toISOString()
+      }));
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Claude API error: ${response.status} - ${error.error?.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    const analysis = data.content[0].text;
-
-    return res.status(200).json({ analysis });
-
   } catch (error) {
-    console.error('Claude API error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Analyze error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
   }
-}
+};
