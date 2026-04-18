@@ -12,8 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ Phase 0: Database infrastructure deployed on Railway.app
 - ✅ Phase 1: Historical data collection pipeline complete (12 endpoints)
 - ✅ Phase 2: Backtest engine with 7 technical indicators implemented
-- 🔄 Phase 3: Bybit integration in progress (API auth + order execution)
-- 📋 Phases 4-6 architecture planned
+- ✅ Phase 3: Bybit integration complete (6 trading endpoints, testnet + live)
+- 📋 Phases 4-6: Charts, order flow analysis, optimization (planned)
 
 **Real Current Tech Stack:**
 - **Frontend:** Vanilla JS served via simple Node.js HTTP server
@@ -195,11 +195,13 @@ curl -X POST http://localhost:3000/api/historical/sync \
 - Full trade history and metrics (P&L, win rate, Sharpe, drawdown)
 - Strategy parameter templates for conservative/balanced/aggressive trading
 
-### 🔄 PHASE 3: Bybit Integration (In Progress)
-- Will include: `/api/bybit/` endpoints
-- HMAC-SHA256 signing for authentication
-- Order execution, position tracking
-- Requires: Bybit API credentials (testnet or live)
+### ✅ PHASE 3: Bybit Integration (Complete)
+- 6 fully functional endpoints for Bybit API
+- HMAC-SHA256 signing for secure authentication
+- Order execution (buy/sell with SL/TP), position tracking, balance queries
+- Testnet and live trading modes supported
+- Automation enablement for strategy automation
+- See PHASE-3-BYBIT.md for full API reference
 
 ### 🔄 PHASE 4: Charts & Indicators (Not Started)
 - Will use: TradingView Lightweight Charts (CDN)
@@ -275,45 +277,32 @@ Core algorithm:
    - `GET /anything` → fallback to index.html (SPA)
 3. Return proper Content-Type headers
 
-### Planned: Bybit API Integration
+### Implemented: Bybit API Integration (Phase 3)
 
-**Will implement in Phase 3:**
-- HMAC-SHA256 signing for request authentication
-- `/api/bybit/balance` - fetch account balance
-- `/api/bybit/positions` - track open positions
-- `/api/bybit/place-order` - execute market/limit orders
-- Default to testnet (`isTestnet: true`)
+**6 Production-Ready Endpoints:**
+- `POST /api/bybit/validate` - Validate API credentials before use
+- `POST /api/bybit/balance` - Fetch account balance and coin holdings
+- `POST /api/bybit/positions` - Query open positions with P&L
+- `POST /api/bybit/place-order` - Execute market orders with SL/TP
+- `POST /api/bybit/cancel-order` - Cancel open orders by ID
+- `POST /api/automation/enable` - Enable/disable automated trading
 
-**Example structure (not yet implemented):**
-```javascript
-// api/bybit/auth.js (Phase 3)
-const crypto = require('crypto');
+**Authentication:**
+- HMAC-SHA256 signing implemented in `api/bybit/auth.js`
+- Testnet and live trading modes supported
+- All endpoints return detailed responses (trades, balance, positions)
 
-class BybitAuth {
-  constructor(apiKey, apiSecret, isTestnet = true) {
-    this.apiKey = apiKey;
-    this.apiSecret = apiSecret;
-    this.baseUrl = isTestnet 
-      ? 'https://testnet.bybit.com'
-      : 'https://api.bybit.com';
-  }
+**Security:**
+- Credentials passed via POST body (not stored in code)
+- Signature verification on every request
+- Order protection: minimum validation, SL/TP always set
+- Testnet-first approach recommended
 
-  sign(params) {
-    const timestamp = Date.now();
-    const queryString = Object.entries(params)
-      .sort()
-      .map(([k, v]) => `${k}=${v}`)
-      .join('&');
-    
-    const signature = crypto
-      .createHmac('sha256', this.apiSecret)
-      .update(queryString + timestamp)
-      .digest('hex');
-    
-    return { signature, timestamp };
-  }
-}
-```
+**See PHASE-3-BYBIT.md for:**
+- Full API reference with curl examples
+- Testing guide (13 comprehensive tests)
+- Testnet → live transition protocol
+- Security best practices
 
 ---
 
@@ -386,11 +375,13 @@ vercel deploy --prod
 - [ ] Test: Run backtest with RSI strategy
 - [ ] Verify: Results include trades list, P&L, Sharpe ratio
 
-### 🔄 PHASE 3 (Bybit)
-- [ ] Create Bybit testnet account
-- [ ] Implement `/api/bybit/balance` endpoint
-- [ ] Test: Fetch Bybit account balance
-- [ ] Test: Place test order on testnet
+### ✅ PHASE 3 (Bybit - Complete)
+- [x] All 6 Bybit endpoints implemented with HMAC-SHA256 auth
+- [x] Testnet and live trading modes supported
+- [x] Order placement with automatic SL/TP calculation
+- [x] Position tracking and balance retrieval functional
+- [x] Comprehensive testing guide (TESTING-PHASE3.md with 13 tests)
+- [x] Full API documentation (PHASE-3-BYBIT.md)
 
 ### 🔄 PHASE 4 (Charts)
 - [ ] Integrate TradingView Lightweight Charts
