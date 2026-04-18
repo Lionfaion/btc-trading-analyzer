@@ -1,8 +1,3 @@
 {
-  "name": "BTC Trading Analyzer",
-  "buildCommand": "echo 'Static site'",
-  "outputDirectory": ".",
-  "env": {
-    "ANTHROPIC_API_KEY": "@anthropic_api_key"
-  }
+  "name": "BTC Trading Analyzer"
 }

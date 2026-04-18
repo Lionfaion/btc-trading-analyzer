@@ -601,13 +601,12 @@
             } catch (error) {
                 console.error('Error fetching liquidations:', error);
 
-                statusElement.innerHTML = '⚠️ Error o API no disponible';
+                statusElement.innerHTML = '⚠️ Coinglass no disponible';
                 statusElement.style.color = '#ff9900';
 
                 heatmapContainer.innerHTML = `
-                    <div style="padding: 10px; color: #ff9900; font-size: 0.85em;">
-                        <strong>Nota:</strong> El endpoint gratuito de Coinglass podría no estar disponible.
-                        ${localStorage.getItem('coingglassApiKey') ? 'Verifica tu API Key.' : 'Intenta guardar tu API Key de Coinglass.'}
+                    <div style="padding: 10px; color: #888; font-size: 0.85em;">
+                        <strong>ℹ️ Info:</strong> Coinglass no está disponible en este momento, pero puedes seguir usando el precio de BTC y análisis con Claude.
                     </div>
                 `;
             }
