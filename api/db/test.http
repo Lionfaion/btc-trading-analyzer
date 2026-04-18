@@ -1,0 +1,185 @@
+### BTC Trading Analyzer - API Test Suite
+### Use with REST Client extension (VS Code) or Postman
+### Replace {{token}} with your JWT token from Supabase Auth
+
+@baseUrl = http://localhost:3000
+@token = your_jwt_token_here
+
+### 1. CREATE Strategy
+POST {{baseUrl}}/api/db/strategy
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "MA Crossover Strategy",
+  "description": "Simple 50/200 moving average crossover",
+  "entry_condition": {
+    "type": "MA_CROSSOVER",
+    "fast_ma": 50,
+    "slow_ma": 200
+  },
+  "exit_condition": {
+    "type": "OPPOSITE_CROSSOVER",
+    "fast_ma": 50,
+    "slow_ma": 200
+  },
+  "risk_per_trade": 2.5,
+  "max_open_trades": 1,
+  "status": "draft"
+}
+
+### 2. GET All Strategies
+GET {{baseUrl}}/api/db/strategy
+Authorization: Bearer {{token}}
+
+### 3. GET Strategy by ID
+GET {{baseUrl}}/api/db/strategy?id=REPLACE_WITH_STRATEGY_ID
+Authorization: Bearer {{token}}
+
+### 4. UPDATE Strategy
+PUT {{baseUrl}}/api/db/strategy?id=REPLACE_WITH_STRATEGY_ID
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "testing",
+  "risk_per_trade": 3.0
+}
+
+### 5. CREATE Trade
+POST {{baseUrl}}/api/db/trade
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "strategy_id": "REPLACE_WITH_STRATEGY_ID",
+  "entry_time": "2024-04-18T10:00:00Z",
+  "entry_price": 61500.50,
+  "quantity": 0.5,
+  "exit_time": "2024-04-18T12:00:00Z",
+  "exit_price": 62000.75,
+  "status": "closed"
+}
+
+### 6. GET All Trades
+GET {{baseUrl}}/api/db/trade
+Authorization: Bearer {{token}}
+
+### 7. GET Trades for Strategy
+GET {{baseUrl}}/api/db/trade?strategy_id=REPLACE_WITH_STRATEGY_ID
+Authorization: Bearer {{token}}
+
+### 8. UPDATE Trade (close open position)
+PUT {{baseUrl}}/api/db/trade?id=REPLACE_WITH_TRADE_ID
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "exit_time": "2024-04-18T15:00:00Z",
+  "exit_price": 62500.00
+}
+
+### 9. CREATE Candles (batch insert/upsert)
+POST {{baseUrl}}/api/db/candles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+[
+  {
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "open_time": "2024-04-18T10:00:00Z",
+    "open": 61000.00,
+    "high": 61500.00,
+    "low": 60800.00,
+    "close": 61200.00,
+    "volume": 150.5,
+    "turnover": 9240000
+  },
+  {
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "open_time": "2024-04-18T11:00:00Z",
+    "open": 61200.00,
+    "high": 61800.00,
+    "low": 61100.00,
+    "close": 61500.00,
+    "volume": 180.2,
+    "turnover": 11070000
+  }
+]
+
+### 10. GET Candles (with filters)
+GET {{baseUrl}}/api/db/candles?symbol=BTCUSDT&timeframe=1h&limit=50&offset=0
+Authorization: Bearer {{token}}
+
+### 11. GET Candles (by date range)
+GET {{baseUrl}}/api/db/candles?symbol=BTCUSDT&timeframe=1h&start_time=2024-04-01T00:00:00Z&end_time=2024-04-30T23:59:59Z
+Authorization: Bearer {{token}}
+
+### 12. CREATE Analysis (backtest result)
+POST {{baseUrl}}/api/db/analysis
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "strategy_id": "REPLACE_WITH_STRATEGY_ID",
+  "total_trades": 45,
+  "win_rate": 62.5,
+  "profit_factor": 2.15,
+  "max_drawdown": 8.5,
+  "avg_win": 450.25,
+  "avg_loss": 150.50,
+  "total_pnl": 13500.00,
+  "sharpe_ratio": 1.85,
+  "metadata": {
+    "backtest_period": "2024-01-01 to 2024-04-18",
+    "initial_capital": 10000,
+    "commission": 0.05
+  }
+}
+
+### 13. GET Analysis Results
+GET {{baseUrl}}/api/db/analysis?strategy_id=REPLACE_WITH_STRATEGY_ID
+Authorization: Bearer {{token}}
+
+### 14. CREATE Bybit Credentials
+POST {{baseUrl}}/api/db/bybit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "api_key": "your_bybit_api_key_here",
+  "api_secret": "your_bybit_api_secret_here",
+  "sandbox_mode": true
+}
+
+### 15. GET Bybit Credentials (metadata only, no secrets)
+GET {{baseUrl}}/api/db/bybit
+Authorization: Bearer {{token}}
+
+### 16. UPDATE Bybit Credentials (activate)
+PUT {{baseUrl}}/api/db/bybit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "is_active": true,
+  "sandbox_mode": false
+}
+
+### 17. DELETE Trade
+DELETE {{baseUrl}}/api/db/trade?id=REPLACE_WITH_TRADE_ID
+Authorization: Bearer {{token}}
+
+### 18. DELETE Strategy (cascades to trades & analysis)
+DELETE {{baseUrl}}/api/db/strategy?id=REPLACE_WITH_STRATEGY_ID
+Authorization: Bearer {{token}}
+
+### 19. DELETE Candles (by symbol/timeframe)
+DELETE {{baseUrl}}/api/db/candles?symbol=BTCUSDT&timeframe=1h
+Authorization: Bearer {{token}}
+
+### 20. DELETE Analysis
+DELETE {{baseUrl}}/api/db/analysis?id=REPLACE_WITH_ANALYSIS_ID
+Authorization: Bearer {{token}}

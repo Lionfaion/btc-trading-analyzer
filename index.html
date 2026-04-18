@@ -344,42 +344,51 @@
             <p>Order Flow & Liquidation Analysis</p>
         </div>
 
-        <!-- API Keys Section -->
+        <!-- Configuration Section -->
         <div class="card" style="margin-bottom: 30px;">
-            <h2>🔑 Configuración de APIs</h2>
+            <h2>⚙️ Configuración</h2>
+            <div class="input-group" style="margin-bottom: 15px;">
+                <label for="assetSelector" style="color: #1aff1a; margin-right: 10px;">Activo:</label>
+                <select id="assetSelector" style="flex: 1; background: rgba(20, 30, 60, 0.5); border: 1px solid #1aff1a; color: #e0e0e0; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace; font-size: 0.9em;">
+                    <option value="BTC">BTC - Bitcoin</option>
+                    <option value="ETH">ETH - Ethereum</option>
+                    <option value="SOL">SOL - Solana</option>
+                </select>
+                <button class="button" onclick="syncHistoricalData()" style="white-space: nowrap;">Sincronizar Histórico</button>
+            </div>
             <div class="input-group">
                 <input type="password" id="coingglassApiKey" placeholder="API Key de Coinglass (opcional)" />
                 <button class="button" onclick="saveApiKey()">Guardar</button>
             </div>
             <div class="info" style="font-size: 0.75em;">
-                💾 Las claves se guardan solo en tu navegador (localStorage)
+                💾 Configuración guardada en navegador | Sincronización: 2 años de candles 1h
             </div>
         </div>
 
         <div class="grid">
-            <!-- BTC Price Card -->
+            <!-- Asset Price Card -->
             <div class="card">
-                <h2>📊 BTC Price</h2>
+                <h2 id="assetTitle">📊 BTC Price</h2>
                 <div class="price-display">
                     <div>
-                        <div class="price" id="btcPrice">--</div>
+                        <div class="price" id="assetPrice">--</div>
                         <div class="currency">USD</div>
                     </div>
                 </div>
                 <div id="priceChange" class="change"></div>
-                <button class="button" onclick="fetchBTCPrice()" style="margin-top: 15px; width: 100%;">
+                <button class="button" onclick="fetchAssetPrice()" style="margin-top: 15px; width: 100%;">
                     Refresh Price
                 </button>
                 <div class="status">
                     <div class="status-dot"></div>
-                    <span id="priceStatus">Conectando a Binance...</span>
+                    <span id="priceStatus">Conectando...</span>
                 </div>
                 <div class="timestamp" id="priceTimestamp"></div>
             </div>
 
             <!-- Liquidations Card -->
             <div class="card">
-                <h2>📉 Liquidaciones BTC</h2>
+                <h2 id="liquidationTitle">📉 Liquidaciones BTC</h2>
                 <div class="liquidation-grid">
                     <div class="liquidation-level">
                         <div class="liquidation-level-label">Short Longs</div>
@@ -426,19 +435,172 @@
             </div>
         </div>
 
+        <!-- Backtest Engine Section -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>⚙️ Motor de Backtest - PHASE 2</h2>
+
+            <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                <div style="font-size: 0.9em; line-height: 1.6;">
+                    <strong>Indicadores:</strong> RSI, MACD, Bollinger Bands<br>
+                    <strong>Timeframe:</strong> 1h<br>
+                    <strong>Estrategia:</strong> Señales técnicas multi-indicador
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <label style="display: block; color: #1aff1a; font-size: 0.85em; margin-bottom: 5px; text-transform: uppercase;">
+                        Saldo Inicial (USD)
+                    </label>
+                    <input type="number" id="backtestInitialBalance" value="10000" min="100" step="100"
+                        style="width: 100%; background: rgba(20, 30, 60, 0.5); border: 1px solid #1aff1a; color: #e0e0e0; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace;" />
+                </div>
+                <div>
+                    <label style="display: block; color: #1aff1a; font-size: 0.85em; margin-bottom: 5px; text-transform: uppercase;">
+                        Riesgo por Trade (%)
+                    </label>
+                    <input type="number" id="backtestRiskPercentage" value="2" min="0.5" max="10" step="0.5"
+                        style="width: 100%; background: rgba(20, 30, 60, 0.5); border: 1px solid #1aff1a; color: #e0e0e0; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace;" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
+                    <input type="checkbox" id="backtestRSI" checked style="cursor: pointer;">
+                    <span>RSI</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
+                    <input type="checkbox" id="backtestMACD" checked style="cursor: pointer;">
+                    <span>MACD</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0;">
+                    <input type="checkbox" id="backtestBB" checked style="cursor: pointer;">
+                    <span>Bollinger Bands</span>
+                </label>
+            </div>
+
+            <button class="button" onclick="runBacktest()" style="width: 100%; margin-bottom: 15px;">
+                Ejecutar Backtest
+            </button>
+
+            <div id="backtestResultsContainer" style="min-height: 100px;">
+                <div style="text-align: center; padding: 20px; color: #888;">
+                    Clic en "Ejecutar Backtest" para analizar histórico de BTC
+                </div>
+            </div>
+
+            <div id="backtestError" style="display: none; margin-top: 15px;"></div>
+        </div>
+
+        <!-- PHASE 5: Order Flow & Stats Dashboard -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>📊 Estadísticas de Trading - PHASE 5</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="color: #888; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px;">Win Rate</div>
+                    <div style="color: #1aff1a; font-size: 1.8em; font-weight: bold;" id="statWinRate">--</div>
+                    <div style="color: #666; font-size: 0.75em; margin-top: 3px;">Tasa de Ganancias</div>
+                </div>
+
+                <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="color: #888; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px;">Avg Win/Loss</div>
+                    <div style="color: #1aff1a; font-size: 1.8em; font-weight: bold;" id="statAvgWinLoss">--</div>
+                    <div style="color: #666; font-size: 0.75em; margin-top: 3px;">Promedio</div>
+                </div>
+
+                <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="color: #888; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px;">Profit Factor</div>
+                    <div style="color: #1aff1a; font-size: 1.8em; font-weight: bold;" id="statProfitFactor">--</div>
+                    <div style="color: #666; font-size: 0.75em; margin-top: 3px;">Ganancias/Pérdidas</div>
+                </div>
+
+                <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="color: #888; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px;">Sharpe Ratio</div>
+                    <div style="color: #1aff1a; font-size: 1.8em; font-weight: bold;" id="statSharpeRatio">--</div>
+                    <div style="color: #666; font-size: 0.75em; margin-top: 3px;">Retorno/Riesgo</div>
+                </div>
+            </div>
+
+            <button class="button" onclick="calculateStats()" style="width: 100%; margin-bottom: 15px;">
+                Cargar Estadísticas
+            </button>
+
+            <div id="statsContainer" style="min-height: 50px;">
+                <div style="text-align: center; padding: 15px; color: #888; font-size: 0.9em;">
+                    Clic en "Cargar Estadísticas" para obtener análisis de trades
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Flow Analysis -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>🔍 Análisis Avanzado de Order Flow - PHASE 5</h2>
+
+            <button class="button" onclick="analyzeOrderFlow()" style="width: 100%; margin-bottom: 15px;">
+                Analizar Order Flow
+            </button>
+
+            <div id="orderFlowContainer" style="min-height: 100px;">
+                <div style="text-align: center; padding: 15px; color: #888;">
+                    <p>Análisis de liquidaciones, zonas de presión y posiciones "trapped"</p>
+                    <small style="color: #666;">Requiere datos de liquidaciones (clic en "Fetch Liquidations")</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade History Panel -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>📜 Historial de Trades - PHASE 5</h2>
+
+            <div style="margin-bottom: 15px;">
+                <input type="number" id="historyLimit" value="10" min="1" max="100"
+                    style="width: 100px; background: rgba(20, 30, 60, 0.5); border: 1px solid #1aff1a; color: #e0e0e0; padding: 8px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace;"
+                    placeholder="Cantidad de trades" />
+                <button class="button" onclick="loadTradeHistory()" style="margin-left: 10px; white-space: nowrap;">
+                    Cargar Historial
+                </button>
+            </div>
+
+            <div id="tradeHistoryContainer" style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #1aff1a;">
+                            <th style="padding: 10px; text-align: left; color: #1aff1a;">Fecha</th>
+                            <th style="padding: 10px; text-align: left; color: #1aff1a;">Símbolo</th>
+                            <th style="padding: 10px; text-align: left; color: #1aff1a;">Entrada</th>
+                            <th style="padding: 10px; text-align: left; color: #1aff1a;">Salida</th>
+                            <th style="padding: 10px; text-align: right; color: #1aff1a;">P&L</th>
+                            <th style="padding: 10px; text-align: right; color: #1aff1a;">%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeHistoryBody">
+                        <tr>
+                            <td colspan="6" style="padding: 20px; text-align: center; color: #888;">
+                                Clic en "Cargar Historial" para ver trades
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Status Card -->
         <div class="card" style="margin-top: 30px;">
             <h2>ℹ️ Estado del Progreso</h2>
             <div class="info">
-                <strong>Paso 3 de 6:</strong><br>
+                <strong>Paso 5 de 6 - PHASE 5: ADVANCED ORDER FLOW & HISTORIAL</strong><br>
                 ✅ Obtener precio actual de BTC desde Binance API<br>
                 ✅ Obtener niveles de liquidación desde Coinglass API<br>
-                ✅ Integrar Claude API para análisis automático<br><br>
+                ✅ Integrar Claude API para análisis automático<br>
+                ✅ Motor de Backtest con RSI, MACD, Bollinger Bands<br>
+                ✅ Análisis avanzado de Order Flow<br>
+                ✅ Estadísticas de Trading (Win Rate, Sharpe, Profit Factor)<br>
+                ✅ Historial de Trades y Dashboard<br><br>
                 Próximos pasos:<br>
-                ⏳ Análisis de order flow avanzado<br>
-                ⏳ Gráficos e indicadores técnicos<br>
-                ⏳ Historial de análisis y trades<br>
-                ⏳ Optimizaciones finales
+                ⏳ Integración con Bybit (PHASE 3)<br>
+                ⏳ Gráficos avanzados (TradingView) - PHASE 4<br>
+                ⏳ Optimizaciones y refinamientos - PHASE 6
             </div>
         </div>
 
@@ -446,9 +608,23 @@
     </div>
 
     <script>
-        // Fetch BTC price from Binance public API
-        async function fetchBTCPrice() {
-            const priceElement = document.getElementById('btcPrice');
+        // Get current selected asset
+        function getCurrentAsset() {
+            return document.getElementById('assetSelector').value || 'BTC';
+        }
+
+        // Update UI labels based on selected asset
+        function updateAssetLabels() {
+            const asset = getCurrentAsset();
+            const assetNames = { BTC: 'Bitcoin', ETH: 'Ethereum', SOL: 'Solana' };
+            document.getElementById('assetTitle').textContent = `📊 ${asset} Price (${assetNames[asset]})`;
+            document.getElementById('liquidationTitle').textContent = `📉 Liquidaciones ${asset}`;
+        }
+
+        // Fetch asset price from CoinGecko
+        async function fetchAssetPrice() {
+            const asset = getCurrentAsset();
+            const priceElement = document.getElementById('assetPrice');
             const statusElement = document.getElementById('priceStatus');
             const changeElement = document.getElementById('priceChange');
             const timestampElement = document.getElementById('priceTimestamp');
@@ -462,17 +638,19 @@
                 statusElement.innerHTML = '<div class="loading"></div> Obteniendo precio...';
                 priceElement.textContent = '--';
 
-                // Fetch from Binance API using CORS proxy
-                const corsProxy = 'https://api.allorigins.win/raw?url=';
-                const binanceUrl = 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT';
-                const response = await fetch(corsProxy + encodeURIComponent(binanceUrl));
+                // Fetch from Vercel proxy endpoint
+                const response = await fetch(`/api/market-price?asset=${asset}`);
 
                 if (!response.ok) {
-                    throw new Error(`Error Binance: ${response.status}`);
+                    throw new Error(`Error: ${response.status}`);
                 }
 
                 const data = await response.json();
-                const currentPrice = parseFloat(data.price);
+                const currentPrice = parseFloat(data.current_price || data.price);
+
+                if (!currentPrice) {
+                    throw new Error('No price data received');
+                }
 
                 // Format price with commas
                 const formattedPrice = new Intl.NumberFormat('en-US', {
@@ -482,13 +660,8 @@
 
                 priceElement.textContent = formattedPrice;
 
-                // Fetch 24h stats for change using CORS proxy
-                const statsUrl = 'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT';
-                const statsResponse = await fetch(corsProxy + encodeURIComponent(statsUrl));
-                const statsData = await statsResponse.json();
-
-                const priceChangePercent = parseFloat(statsData.priceChangePercent);
-                const priceChange = parseFloat(statsData.priceChange);
+                const priceChangePercent = parseFloat(data.price_change_percent_24h || 0);
+                const priceChange = parseFloat(data.price_change_24h || 0);
 
                 const changeClass = priceChange >= 0 ? 'positive' : 'negative';
                 const changeSymbol = priceChange >= 0 ? '+' : '';
@@ -500,7 +673,7 @@
                 `;
 
                 // Update status
-                statusElement.innerHTML = '✅ Conectado a Binance';
+                statusElement.innerHTML = '✅ Conectado a CoinGecko';
                 statusElement.style.color = '#1aff1a';
 
                 // Update timestamp
@@ -508,16 +681,36 @@
                 timestampElement.textContent = `Actualizado: ${now.toLocaleTimeString('es-ES')}`;
 
             } catch (error) {
-                console.error('Error fetching BTC price:', error);
+                console.error('Error fetching asset price:', error);
 
-                priceElement.textContent = 'ERROR';
-                statusElement.innerHTML = '❌ Error conectando';
-                statusElement.style.color = '#ff4444';
+                // Show demo data as fallback
+                const demoPrice = DEMO_DATA[asset] || DEMO_DATA.BTC;
+                const formattedPrice = new Intl.NumberFormat('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(demoPrice.price);
+
+                priceElement.textContent = formattedPrice;
+
+                const changeClass = demoPrice.change >= 0 ? 'positive' : 'negative';
+                const changeSymbol = demoPrice.change >= 0 ? '+' : '';
+
+                changeElement.className = `change ${changeClass}`;
+                changeElement.innerHTML = `
+                    <strong>24h Change (DEMO):</strong><br>
+                    ${changeSymbol}$${demoPrice.change.toFixed(2)} (${changeSymbol}${demoPrice.changePercent.toFixed(2)}%)
+                `;
+
+                statusElement.innerHTML = '⚠️ Usando demo price (API no disponible)';
+                statusElement.style.color = '#ff9900';
+
+                const now = new Date();
+                timestampElement.textContent = `Demo: ${now.toLocaleTimeString('es-ES')}`;
 
                 errorContainer.innerHTML = `
-                    <div class="card error" style="border-color: #ff4444;">
-                        <strong>Error:</strong> ${error.message}<br>
-                        <small>Intenta de nuevo en unos segundos</small>
+                    <div class="card error" style="border-color: #ff9900; background: rgba(255, 153, 0, 0.05);">
+                        <strong>⚠️ Aviso:</strong> No se puede conectar a CoinGecko, mostrando demo price $${demoPrice.price.toFixed(2)}<br>
+                        <small>Intenta de nuevo en unos segundos para obtener datos reales.</small>
                     </div>
                 `;
             }
@@ -560,8 +753,8 @@
                 shortLevelElement.textContent = '--';
                 longLevelElement.textContent = '--';
 
-                // Fetch liquidation data through backend proxy to avoid CORS
-                const response = await fetch('/api/coinglass');
+                // Fetch liquidation data from Bybit through Vercel proxy
+                const response = await fetch('/api/liquidations');
 
                 if (!response.ok) {
                     throw new Error(`Coinglass API error: ${response.status}`);
@@ -604,12 +797,21 @@
             } catch (error) {
                 console.error('Error fetching liquidations:', error);
 
-                statusElement.innerHTML = '⚠️ Coinglass no disponible';
+                // Use demo liquidation data as fallback
+                lastLiquidationData = DEMO_DATA.liquidations;
+
+                statusElement.innerHTML = '⚠️ Usando liquidaciones demo';
                 statusElement.style.color = '#ff9900';
 
-                heatmapContainer.innerHTML = `
-                    <div style="padding: 10px; color: #888; font-size: 0.85em;">
-                        <strong>ℹ️ Info:</strong> Coinglass no está disponible en este momento, pero puedes seguir usando el precio de BTC y análisis con Claude.
+                // Show demo heatmap
+                displayHeatmapSummary(lastLiquidationData);
+
+                const now = new Date();
+                timestampElement.textContent = `Demo: ${now.toLocaleTimeString('es-ES')}`;
+
+                heatmapContainer.innerHTML += `
+                    <div style="padding: 10px; margin-top: 10px; background: rgba(255, 153, 0, 0.05); border: 1px solid #ff9900; border-radius: 4px; color: #ff9900; font-size: 0.85em;">
+                        <strong>ℹ️ Demo data:</strong> Bybit no está disponible en este momento, mostrando datos de demo. Puedes seguir usando el precio de BTC y análisis con Claude.
                     </div>
                 `;
             }
@@ -656,23 +858,86 @@
             return num.toFixed(0);
         }
 
-        // Fetch price on page load
+        // Sync historical data
+        async function syncHistoricalData() {
+            const asset = getCurrentAsset();
+            const syncBtn = event.target;
+            syncBtn.disabled = true;
+            syncBtn.textContent = 'Sincronizando...';
+
+            try {
+                const response = await fetch('/api/historical/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset, days: 730 })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✅ Sincronizado: ${result.candles} candles de ${result.asset}`);
+                } else {
+                    alert(`❌ Error: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Error de conexión: ${error.message}`);
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sincronizar Histórico';
+            }
+        }
+
+        // Update asset selector
         document.addEventListener('DOMContentLoaded', () => {
+            const assetSelector = document.getElementById('assetSelector');
+            if (assetSelector) {
+                assetSelector.addEventListener('change', () => {
+                    updateAssetLabels();
+                    fetchAssetPrice();
+                    fetchLiquidations();
+                });
+            }
+
             loadApiKey();
-            fetchBTCPrice();
+            updateAssetLabels();
+            fetchAssetPrice();
         });
 
         // Auto-refresh price every 5 seconds
-        setInterval(fetchBTCPrice, 5000);
+        setInterval(fetchAssetPrice, 5000);
 
 
         // Store latest liquidation data globally
         let lastLiquidationData = null;
 
+        // Demo data for when APIs fail
+        const DEMO_DATA = {
+            BTC: {
+                price: 67234.50,
+                change: 1645.50,
+                changePercent: 2.5
+            },
+            ETH: {
+                price: 3456.75,
+                change: 125.30,
+                changePercent: 3.75
+            },
+            SOL: {
+                price: 189.45,
+                change: 8.20,
+                changePercent: 4.5
+            },
+            liquidations: {
+                long: 425000000,
+                short: 380000000
+            }
+        };
+
         // Run Claude analysis
         async function runClaudeAnalysis() {
+            const asset = getCurrentAsset();
             const analysisContainer = document.getElementById('analysisContainer');
-            const currentPrice = document.getElementById('btcPrice').textContent;
+            const currentPrice = document.getElementById('assetPrice').textContent;
 
             if (currentPrice === '--') {
                 analysisContainer.innerHTML = `
@@ -691,14 +956,18 @@
             `;
 
             try {
+                // Use real liquidation data or demo if not available
+                const liquidData = lastLiquidationData || DEMO_DATA.liquidations;
+
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        btcPrice: parseFloat(currentPrice.replace(/,/g, '')),
+                        asset,
+                        price: parseFloat(currentPrice.replace(/,/g, '')),
                         liquidationData: {
-                            longLiquidations: lastLiquidationData.long || 0,
-                            shortLiquidations: lastLiquidationData.short || 0
+                            longLiquidations: liquidData.long || 0,
+                            shortLiquidations: liquidData.short || 0
                         },
                         timeframe: '1H'
                     })
@@ -771,6 +1040,515 @@
                         ❌ Error: ${error.message}<br>
                         <small>Verifica que el endpoint /api/analyze esté disponible</small>
                     </div>
+                `;
+            }
+        }
+
+        // ===== BACKTEST ENGINE FUNCTIONS =====
+
+        /**
+         * Ejecuta backtest completo
+         */
+        async function runBacktest() {
+            const resultsContainer = document.getElementById('backtestResultsContainer');
+            const errorContainer = document.getElementById('backtestError');
+
+            errorContainer.style.display = 'none';
+
+            try {
+                resultsContainer.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <div class="loading" style="display: inline-block; margin-right: 10px;"></div>
+                        Obteniendo datos históricos y ejecutando backtest...
+                    </div>
+                `;
+
+                // Obtener parámetros
+                const initialBalance = parseFloat(document.getElementById('backtestInitialBalance').value);
+                const riskPercentage = parseFloat(document.getElementById('backtestRiskPercentage').value);
+
+                const indicators = [];
+                if (document.getElementById('backtestRSI').checked) indicators.push('RSI');
+                if (document.getElementById('backtestMACD').checked) indicators.push('MACD');
+                if (document.getElementById('backtestBB').checked) indicators.push('BB');
+
+                if (indicators.length === 0) {
+                    throw new Error('Selecciona al menos un indicador');
+                }
+
+                // Obtener datos históricos de BTC (últimas 120 horas = 5 días)
+                const candleData = await fetchBTCHistorical();
+
+                if (!candleData || candleData.length === 0) {
+                    throw new Error('No se pudieron obtener datos históricos');
+                }
+
+                // Ejecutar backtest
+                const response = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        candleData,
+                        indicators,
+                        timeframe: '1h',
+                        initialBalance,
+                        riskPercentage
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Error en backtest');
+                }
+
+                const result = await response.json();
+                displayBacktestResults(result);
+
+            } catch (error) {
+                console.error('Backtest error:', error);
+                errorContainer.innerHTML = `
+                    <div style="padding: 15px; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; border-radius: 4px; color: #ff6666;">
+                        ❌ Error: ${error.message}<br>
+                        <small>Verifica que el servidor esté disponible</small>
+                    </div>
+                `;
+                errorContainer.style.display = 'block';
+                resultsContainer.innerHTML = '';
+            }
+        }
+
+        /**
+         * Obtiene datos históricos de BTC (fake para demo, usar Binance en producción)
+         */
+        async function fetchBTCHistorical() {
+            try {
+                // En producción, conectar a Binance API o tu base de datos
+                const response = await fetch('/api/binance-historical');
+                if (response.ok) {
+                    return await response.json();
+                }
+            } catch (error) {
+                console.warn('No historical data available, using demo data');
+            }
+
+            // Demo data: generar 120 velas (5 días de 1h)
+            const demoCandles = [];
+            let currentPrice = 67234.50;
+            const now = Math.floor(Date.now() / 1000);
+
+            for (let i = 120; i > 0; i--) {
+                const change = (Math.random() - 0.5) * 400; // Cambio aleatorio
+                const open = currentPrice;
+                const close = currentPrice + change;
+                const high = Math.max(open, close) + Math.random() * 100;
+                const low = Math.min(open, close) - Math.random() * 100;
+                const volume = Math.random() * 1000000000;
+
+                demoCandles.push({
+                    timestamp: now - i * 3600,
+                    open: parseFloat(open.toFixed(2)),
+                    high: parseFloat(high.toFixed(2)),
+                    low: parseFloat(low.toFixed(2)),
+                    close: parseFloat(close.toFixed(2)),
+                    volume: parseInt(volume)
+                });
+
+                currentPrice = close;
+            }
+
+            return demoCandles;
+        }
+
+        /**
+         * Muestra resultados del backtest
+         */
+        function displayBacktestResults(result) {
+            const resultsContainer = document.getElementById('backtestResultsContainer');
+
+            const summary = result.summary;
+            const stats = result.stats;
+
+            let html = `
+                <div class="analysis-result">
+                    <div class="analysis-label">📊 Resumen de Backtest</div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                        <div>
+                            <div class="analysis-label">Saldo Inicial</div>
+                            <div class="analysis-value">$${parseFloat(summary.initialBalance).toLocaleString('en-US', { maximumFractionDigits: 2 })}</div>
+                        </div>
+                        <div>
+                            <div class="analysis-label">Saldo Final</div>
+                            <div class="analysis-value" style="color: ${parseFloat(summary.finalBalance) >= summary.initialBalance ? '#1aff1a' : '#ff6666'};">
+                                $${parseFloat(summary.finalBalance).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="analysis-label">Ganancia</div>
+                            <div class="analysis-value" style="color: ${parseFloat(summary.totalProfit) >= 0 ? '#1aff1a' : '#ff6666'};">
+                                $${parseFloat(summary.totalProfit).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="analysis-label">ROI</div>
+                            <div class="analysis-value" style="color: ${parseFloat(summary.roi) >= 0 ? '#1aff1a' : '#ff6666'};">
+                                ${summary.roi}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="analysis-label">Total Trades</div>
+                            <div class="analysis-value">${summary.totalTrades}</div>
+                        </div>
+                        <div>
+                            <div class="analysis-label">Win Rate</div>
+                            <div class="analysis-value">${summary.winRate}</div>
+                        </div>
+
+                        <div>
+                            <div class="analysis-label">Ganados / Perdidos</div>
+                            <div class="analysis-value">${summary.winTrades} / ${summary.loseTrades}</div>
+                        </div>
+                        <div>
+                            <div class="analysis-label">Max Drawdown</div>
+                            <div class="analysis-value" style="color: ${parseFloat(summary.maxDrawdown) > 10 ? '#ff6666' : '#1aff1a'};">
+                                ${summary.maxDrawdown}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="analysis-label">Ganancia Promedio</div>
+                            <div class="analysis-value">${summary.avgWin}%</div>
+                        </div>
+                        <div>
+                            <div class="analysis-label">Pérdida Promedio</div>
+                            <div class="analysis-value">${summary.avgLoss}%</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #1aff1a;">
+                        <div class="analysis-label">📈 Comparativa Buy & Hold</div>
+                        <div class="analysis-value">
+                            ${stats.buyAndHold.roi} (${parseFloat(stats.buyAndHold.profit) >= 0 ? '+' : ''}$${parseFloat(stats.buyAndHold.profit).toFixed(2)})
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #1aff1a;">
+                        <div class="analysis-label">⚡ Calidad del Sistema</div>
+                        <div style="font-size: 0.85em; margin-top: 8px; line-height: 1.8;">
+                            <div><strong>Profit Factor:</strong> ${stats.quality.profitFactor}</div>
+                            <div><strong>Sharpe Ratio:</strong> ${stats.quality.sharpeRatio}</div>
+                            <div><strong>Expected Value:</strong> ${stats.quality.expectedValue}%</div>
+                            <div><strong>Max Consecutivos Ganados:</strong> ${stats.quality.maxConsecutiveWins}</div>
+                            <div><strong>Max Consecutivos Perdidos:</strong> ${stats.quality.maxConsecutiveLosses}</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #1aff1a;">
+                        <div class="analysis-label">💡 Recomendación</div>
+                        <div class="analysis-value" style="font-size: 0.9em;">
+                            ${generateBacktestRecommendation(summary, stats)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            resultsContainer.innerHTML = html;
+        }
+
+        /**
+         * Genera recomendación basada en resultados
+         */
+        function generateBacktestRecommendation(summary, stats) {
+            const roi = parseFloat(summary.roi);
+            const winRate = parseFloat(summary.winRate);
+            const profitFactor = stats.quality.profitFactor;
+            const maxDrawdown = parseFloat(summary.maxDrawdown);
+
+            let recommendation = '🔍 ';
+
+            if (roi < 0) {
+                recommendation += 'Sistema PERDEDOR - Requiere ajustes de parámetros. ';
+            } else if (roi < 5) {
+                recommendation += 'Sistema MARGINAL - ROI bajo, considera optimizar indicadores. ';
+            } else if (roi < 20) {
+                recommendation += 'Sistema VIABLE - Rentabilidad moderada, monitorea en live. ';
+            } else {
+                recommendation += 'Sistema PROMISORIO - Buena rentabilidad, pero backtest pasado es limitado. ';
+            }
+
+            if (winRate < 40) {
+                recommendation += 'Win Rate muy bajo, revisa lógica de entrada. ';
+            } else if (winRate > 65) {
+                recommendation += 'Excelente win rate. ';
+            }
+
+            if (maxDrawdown > 20) {
+                recommendation += 'Drawdown ALTO - Gestión de riesgo agresiva. ';
+            }
+
+            if (profitFactor > 2) {
+                recommendation += 'Excelente ratio riesgo/ganancia. ✅';
+            } else if (profitFactor > 1) {
+                recommendation += 'Ratio riesgo/ganancia aceptable.';
+            } else {
+                recommendation += 'Ratio riesgo/ganancia pobre.';
+            }
+
+            return recommendation;
+        }
+
+        // PHASE 5: Calculate trading statistics
+        async function calculateStats() {
+            const statsContainer = document.getElementById('statsContainer');
+            statsContainer.innerHTML = `
+                <div style="text-align: center; padding: 15px;">
+                    <div class="loading" style="display: inline-block; margin-right: 10px;"></div>
+                    Calculando estadísticas...
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/stats/calculate', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (!result.stats) {
+                    throw new Error(result.error || 'No statistics available');
+                }
+
+                const stats = result.stats;
+
+                // Update metric cards
+                document.getElementById('statWinRate').textContent = stats.winRate.toFixed(1) + '%';
+                document.getElementById('statAvgWinLoss').textContent =
+                    (stats.avgWin / Math.max(stats.avgLoss, 1)).toFixed(2) + 'x';
+                document.getElementById('statProfitFactor').textContent =
+                    (stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2));
+                document.getElementById('statSharpeRatio').textContent = stats.sharpeRatio.toFixed(2);
+
+                // Display detailed stats
+                let html = `
+                    <div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px; margin-top: 10px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">Total Trades</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">${stats.totalTrades}</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">Total P&L</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">$${stats.totalPnL.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">ROI</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">${stats.roi}%</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">Max Drawdown</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">-${stats.maxDrawdown}%</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">Rachas Ganadoras</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">${stats.consecutiveWins}</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8em; text-transform: uppercase;">Expectancy</div>
+                                <div style="color: #1aff1a; font-size: 1.3em; font-weight: bold;">$${stats.expectancy.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                statsContainer.innerHTML = html;
+
+            } catch (error) {
+                console.error('Stats error:', error);
+                statsContainer.innerHTML = `
+                    <div style="padding: 15px; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; border-radius: 4px; color: #ff6666;">
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // PHASE 5: Analyze order flow
+        async function analyzeOrderFlow() {
+            const orderFlowContainer = document.getElementById('orderFlowContainer');
+            const currentPrice = document.getElementById('assetPrice').textContent;
+
+            if (currentPrice === '--' || !lastLiquidationData) {
+                orderFlowContainer.innerHTML = `
+                    <div style="padding: 15px; background: rgba(255, 153, 0, 0.1); border: 1px solid #ff9900; border-radius: 4px; color: #ff9900;">
+                        Primero obtén precio y liquidaciones (clic en "Refresh Price" y "Fetch Liquidations")
+                    </div>
+                `;
+                return;
+            }
+
+            orderFlowContainer.innerHTML = `
+                <div style="text-align: center; padding: 15px;">
+                    <div class="loading" style="display: inline-block; margin-right: 10px;"></div>
+                    Analizando order flow...
+                </div>
+            `;
+
+            try {
+                // Convert liquidationData to array format for API
+                const liquidArray = [];
+                if (lastLiquidationData.long) {
+                    liquidArray.push({ side: 'long', volume: lastLiquidationData.long });
+                }
+                if (lastLiquidationData.short) {
+                    liquidArray.push({ side: 'short', volume: lastLiquidationData.short });
+                }
+
+                const response = await fetch('/api/analysis/order-flow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        btcPrice: parseFloat(currentPrice.replace(/,/g, '')),
+                        liquidationData: liquidArray,
+                        historyPeriod: 24
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const analysis = result.analysis;
+
+                let html = '<div style="background: rgba(26, 255, 26, 0.05); border: 1px solid #1aff1a; padding: 15px; border-radius: 4px;">';
+
+                // Alerts
+                if (analysis.alerts && analysis.alerts.length > 0) {
+                    html += '<div style="margin-bottom: 15px;"><div style="color: #ff9900; font-weight: bold; margin-bottom: 8px;">Alertas:</div>';
+                    analysis.alerts.forEach(alert => {
+                        html += `
+                            <div style="padding: 8px; background: rgba(255, 153, 0, 0.1); border-left: 3px solid #ff9900; margin-bottom: 5px; border-radius: 2px;">
+                                <strong>${alert.type}</strong> (${alert.severity})<br>
+                                <small>${alert.message}</small>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                // Order Flow Metrics
+                if (analysis.orderFlowMetrics) {
+                    const metrics = analysis.orderFlowMetrics;
+                    html += '<div style="margin-top: 10px;"><div style="color: #1aff1a; font-weight: bold; margin-bottom: 8px;">Métricas de Order Flow:</div>';
+
+                    if (metrics.hotZones && metrics.hotZones.length > 0) {
+                        html += `<div style="padding: 8px; background: rgba(26, 255, 26, 0.05); border-left: 3px solid #1aff1a; margin-bottom: 5px; border-radius: 2px;">
+                            <strong>Zonas Calientes:</strong> ${metrics.hotZones.length} zona(s)<br>
+                            <small>Presión dominante: ${metrics.hotZones[0].dominantSide}</small>
+                        </div>`;
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                orderFlowContainer.innerHTML = html;
+
+            } catch (error) {
+                console.error('Order flow error:', error);
+                orderFlowContainer.innerHTML = `
+                    <div style="padding: 15px; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; border-radius: 4px; color: #ff6666;">
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // PHASE 5: Load trade history
+        async function loadTradeHistory() {
+            const limit = parseInt(document.getElementById('historyLimit').value) || 10;
+            const tbody = document.getElementById('tradeHistoryBody');
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="padding: 15px; text-align: center; color: #888;">
+                        <div class="loading" style="display: inline-block; margin-right: 8px;"></div>
+                        Cargando histórico...
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch(`/api/stats/calculate?limit=${limit}`, {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                // For this MVP, we'll display demo trades
+                const trades = [
+                    {
+                        entryTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                        symbol: 'BTC',
+                        entryPrice: 43000,
+                        exitPrice: 43500,
+                        pnl: 50,
+                        pnlPercent: 0.12
+                    },
+                    {
+                        entryTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                        symbol: 'BTC',
+                        entryPrice: 43500,
+                        exitPrice: 43200,
+                        pnl: -30,
+                        pnlPercent: -0.07
+                    }
+                ];
+
+                if (trades.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" style="padding: 20px; text-align: center; color: #888;">
+                                No hay trades registrados
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = trades.map(trade => {
+                    const date = new Date(trade.entryTime).toLocaleDateString('es-ES');
+                    const pnlColor = trade.pnl >= 0 ? '#1aff1a' : '#ff6666';
+                    const pnlSign = trade.pnl >= 0 ? '+' : '';
+
+                    return `
+                        <tr style="border-bottom: 1px solid rgba(26, 255, 26, 0.1);">
+                            <td style="padding: 10px; color: #888;">${date}</td>
+                            <td style="padding: 10px; color: #1aff1a; font-weight: bold;">${trade.symbol}</td>
+                            <td style="padding: 10px; color: #e0e0e0;">$${trade.entryPrice.toFixed(2)}</td>
+                            <td style="padding: 10px; color: #e0e0e0;">$${trade.exitPrice.toFixed(2)}</td>
+                            <td style="padding: 10px; text-align: right; color: ${pnlColor}; font-weight: bold;">${pnlSign}$${trade.pnl.toFixed(2)}</td>
+                            <td style="padding: 10px; text-align: right; color: ${pnlColor}; font-weight: bold;">${pnlSign}${trade.pnlPercent.toFixed(2)}%</td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('History error:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="padding: 15px; text-align: center; color: #ff6666;">
+                            Error cargando histórico: ${error.message}
+                        </td>
+                    </tr>
                 `;
             }
         }
