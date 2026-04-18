@@ -1,0 +1,16 @@
+{
+  "name": "btc-trading-analyzer",
+  "version": "1.0.0",
+  "description": "Complete 6-phase BTC trading platform with Supabase, backtesting, Bybit integration, and TradingView charts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  }
+}
