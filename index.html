@@ -674,10 +674,10 @@
             const analysisContainer = document.getElementById('analysisContainer');
             const currentPrice = document.getElementById('btcPrice').textContent;
 
-            if (!lastLiquidationData || currentPrice === '--') {
+            if (currentPrice === '--') {
                 analysisContainer.innerHTML = `
                     <div style="text-align: center; padding: 20px; color: #ff9900;">
-                        ⚠️ Primero obtén el precio y liquidaciones
+                        ⚠️ Primero obtén el precio de BTC (clic en "Refresh Price")
                     </div>
                 `;
                 return;
@@ -709,6 +709,11 @@
                 }
 
                 const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
                 const analysis = typeof result.analysis === 'string'
                     ? JSON.parse(result.analysis)
                     : result.analysis;
