@@ -9,10 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **BTC Trading Analyzer** → Complete 6-Phase Trading Platform (in development)
 
 **Current Status (2026-04-18):**
-- ✅ Basic infrastructure deployed on Railway.app
-- ✅ Database schema created (Supabase PostgreSQL)
-- 🔄 Phases 0-1 in progress (Database + Historical data)
-- 📋 Phases 2-6 architecture planned (see PHASE_ROADMAP below)
+- ✅ Phase 0: Database infrastructure deployed on Railway.app
+- ✅ Phase 1: Historical data collection pipeline complete (12 endpoints)
+- ✅ Phase 2: Backtest engine with 7 technical indicators implemented
+- 🔄 Phase 3: Bybit integration in progress (API auth + order execution)
+- 📋 Phases 4-6 architecture planned
 
 **Real Current Tech Stack:**
 - **Frontend:** Vanilla JS served via simple Node.js HTTP server
@@ -171,25 +172,30 @@ curl -X POST http://localhost:3000/api/historical/sync \
 
 ## Implementation Status by Phase
 
-### ✅ PHASE 0: Database & Auth (In Progress)
-- Database schema created in Supabase
-- 6 core tables: users, strategies, candles_ohlcv, trades, analysis_history, bybit_credentials
-- Database ready but not yet integrated into API endpoints
-- Next: Add API routes in `/api/db/`
+### ✅ PHASE 0: Database & Auth (Complete)
+- Database schema created in Supabase (7 tables)
+- All DB CRUD operations implemented in `/api/db/`
+- Environment variables configured on Railway
+- Ready for production use
 
-### ✅ PHASE 1: Historical Data Collection (Planned)
-- `/api/historical/sync.js` - endpoint for initial data load
-- `/api/historical/update.js` - endpoint for hourly candle updates
-- `lib/coingecko-client.js` - CoinGecko API integration
-- Next: Implement and test data collection pipeline
+### ✅ PHASE 1: Historical Data Collection (Complete)
+- 12 fully functional endpoints implemented
+- CoinGecko integration for price/OHLCV data
+- Multi-asset support (BTC, ETH, SOL, etc)
+- Candle sync and retrieval working
+- Demo data fallback when DB unavailable
+- Frontend 8-panel dashboard operational
 
-### 🔄 PHASE 2: Backtest Engine (Not Started)
-- Will include: `api/backtest/run.js`
-- Indicators: RSI, MACD, Bollinger Bands
-- Metrics: P&L, win rate, Sharpe ratio, max drawdown
-- Placeholder files exist, logic not implemented yet
+### ✅ PHASE 2: Backtest Engine (Complete)
+- `api/backtest/run.js` - Basic 2-indicator backtest (RSI + MACD)
+- `api/backtest/advanced.js` - Multi-indicator backtest (7 indicators total)
+- `lib/indicators.js` - Complete implementations:
+  - RSI, MACD, Bollinger Bands, Stochastic, ATR, ADX, EMA
+- Risk-based position sizing
+- Full trade history and metrics (P&L, win rate, Sharpe, drawdown)
+- Strategy parameter templates for conservative/balanced/aggressive trading
 
-### 🔄 PHASE 3: Bybit Integration (Not Started)
+### 🔄 PHASE 3: Bybit Integration (In Progress)
 - Will include: `/api/bybit/` endpoints
 - HMAC-SHA256 signing for authentication
 - Order execution, position tracking
