@@ -557,15 +557,8 @@
                 shortLevelElement.textContent = '--';
                 longLevelElement.textContent = '--';
 
-                const apiKey = localStorage.getItem('coingglassApiKey');
-
-                // Try free endpoint first (no API key needed)
-                const headers = apiKey ? { 'coinglassSecret': apiKey } : {};
-
-                // Fetch liquidation data from Coinglass API
-                const response = await fetch('https://open-api.coinglass.com/public/v2/liquidation/realtime?symbol=BTC', {
-                    headers: headers
-                });
+                // Fetch liquidation data through backend proxy to avoid CORS
+                const response = await fetch('/api/coinglass');
 
                 if (!response.ok) {
                     throw new Error(`Coinglass API error: ${response.status}`);
@@ -578,6 +571,7 @@
                 }
 
                 const liquidationData = data.data;
+                lastLiquidationData = liquidationData;
 
                 // Extract long and short liquidation levels
                 const longLiquidations = liquidationData.long || 0;
@@ -601,8 +595,8 @@
                 const now = new Date();
                 timestampElement.textContent = `Actualizado: ${now.toLocaleTimeString('es-ES')}`;
 
-                // Fetch heatmap data if available
-                await fetchHeatmapData(headers);
+                // Show heatmap summary
+                displayHeatmapSummary(liquidationData);
 
             } catch (error) {
                 console.error('Error fetching liquidations:', error);
@@ -619,41 +613,35 @@
             }
         }
 
-        // Fetch heatmap data for liquidation zones
-        async function fetchHeatmapData(headers) {
-            try {
-                const response = await fetch('https://open-api.coinglass.com/public/v2/liquidationHeatmap?symbol=BTC', {
-                    headers: headers
-                });
+        // Display heatmap summary from liquidation data
+        function displayHeatmapSummary(data) {
+            const heatmapContainer = document.getElementById('heatmapContainer');
+            const longLiq = data.long || 0;
+            const shortLiq = data.short || 0;
+            const total = longLiq + shortLiq;
 
-                if (!response.ok) {
-                    console.warn('Heatmap endpoint not available');
-                    return;
-                }
-
-                const data = await response.json();
-                const heatmapContainer = document.getElementById('heatmapContainer');
-
-                if (data.data && data.data.length > 0) {
-                    let html = '';
-                    const topLevels = data.data.slice(0, 10);
-
-                    topLevels.forEach(level => {
-                        const price = level.price ? level.price.toFixed(2) : 'N/A';
-                        const volume = formatNumber(level.amount || 0);
-                        html += `
-                            <div class="heatmap-row">
-                                <span class="heatmap-level">$${price}</span>
-                                <span class="heatmap-volume">${volume}</span>
-                            </div>
-                        `;
-                    });
-
-                    heatmapContainer.innerHTML = html;
-                }
-            } catch (error) {
-                console.warn('Could not fetch heatmap:', error.message);
+            if (total === 0) {
+                heatmapContainer.innerHTML = '<div style="padding: 10px; color: #888;">Sin datos disponibles</div>';
+                return;
             }
+
+            const ratio = (longLiq / shortLiq).toFixed(2);
+            const dominance = longLiq > shortLiq ? 'Longs dominan' : 'Shorts dominan';
+
+            heatmapContainer.innerHTML = `
+                <div class="heatmap-row">
+                    <span class="heatmap-level">Total Liquidaciones</span>
+                    <span class="heatmap-volume">${formatNumber(total)}</span>
+                </div>
+                <div class="heatmap-row">
+                    <span class="heatmap-level">Ratio Long/Short</span>
+                    <span class="heatmap-volume">${ratio}x</span>
+                </div>
+                <div class="heatmap-row">
+                    <span class="heatmap-level">Dominio</span>
+                    <span class="heatmap-volume">${dominance}</span>
+                </div>
+            `;
         }
 
         // Format large numbers with commas and suffixes
@@ -684,30 +672,6 @@
 
         // Store latest liquidation data globally
         let lastLiquidationData = null;
-
-        // Override fetchLiquidations to store data
-        const originalFetchLiquidations = window.fetchLiquidations;
-        window.fetchLiquidations = async function() {
-            const apiKey = localStorage.getItem('coingglassApiKey');
-            const headers = apiKey ? { 'coinglassSecret': apiKey } : {};
-
-            try {
-                const response = await fetch('https://open-api.coinglass.com/public/v2/liquidation/realtime?symbol=BTC', {
-                    headers: headers
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.data) {
-                        lastLiquidationData = data.data;
-                    }
-                }
-            } catch (error) {
-                console.log('Error storing liquidation data');
-            }
-
-            return originalFetchLiquidations.call(this);
-        };
 
         // Run Claude analysis
         async function runClaudeAnalysis() {
