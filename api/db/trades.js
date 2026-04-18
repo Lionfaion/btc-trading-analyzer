@@ -1,4 +1,4 @@
-const { saveAnalysis, getAnalysisHistory } = require('./init');
+const { insertTrade, getTrades } = require('./init');
 
 module.exports = async (req, res) => {
   try {
@@ -7,23 +7,27 @@ module.exports = async (req, res) => {
       req.on('data', chunk => body += chunk);
       req.on('end', async () => {
         try {
-          const analysis = JSON.parse(body);
+          const trade = JSON.parse(body);
           
-          if (!analysis.symbol || !analysis.analysis) {
+          if (!trade.symbol || !trade.entry_price || !trade.exit_price) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Missing symbol or analysis' }));
+            res.end(JSON.stringify({ error: 'Missing required fields' }));
             return;
           }
 
-          analysis.timestamp = analysis.timestamp || new Date().toISOString();
+          trade.pnl = (trade.exit_price - trade.entry_price) * (trade.quantity || 1);
+          trade.pnl_percent = ((trade.exit_price - trade.entry_price) / trade.entry_price) * 100;
+          trade.is_win = trade.pnl > 0;
+          trade.entry_time = trade.entry_time || new Date().toISOString();
+          trade.exit_time = trade.exit_time || new Date().toISOString();
 
-          await saveAnalysis(analysis);
+          await insertTrade(trade);
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             success: true,
-            message: 'Analysis saved',
-            analysis
+            trade,
+            message: 'Trade saved successfully'
           }));
         } catch (error) {
           console.error('POST error:', error);
@@ -33,16 +37,16 @@ module.exports = async (req, res) => {
       });
     } else if (req.method === 'GET') {
       const symbol = new URL(`http://localhost${req.url}`).searchParams.get('symbol') || 'BTC';
-      const limit = parseInt(new URL(`http://localhost${req.url}`).searchParams.get('limit')) || 50;
+      const limit = parseInt(new URL(`http://localhost${req.url}`).searchParams.get('limit')) || 100;
 
-      const history = await getAnalysisHistory(symbol, limit);
+      const trades = await getTrades(symbol, limit);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: true,
         symbol,
-        count: history.length,
-        analysis: history
+        count: trades.length,
+        trades
       }));
     } else {
       res.writeHead(405, { 'Content-Type': 'application/json' });
