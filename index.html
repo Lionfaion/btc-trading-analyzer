@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BTC Trading Analyzer - Order Flow & Liquidations</title>
+    <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.production.js"></script>
+    <script src="/lib/tradingview-init.js"></script>
     <style>
         * {
             margin: 0;
@@ -365,6 +367,24 @@
             </div>
         </div>
 
+        <!-- PHASE 4: Interactive TradingView Chart -->
+        <div class="card" style="margin-bottom: 30px;">
+            <h2>📈 Gráfico Interactivo TradingView - PHASE 4</h2>
+            <div style="margin-bottom: 15px;">
+                <select id="chartAssetSelector" style="background: rgba(20, 30, 60, 0.5); border: 1px solid #1aff1a; color: #e0e0e0; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace; font-size: 0.9em; margin-right: 10px;">
+                    <option value="BTCUSDT">BTC - Bitcoin</option>
+                    <option value="ETHUSDT">ETH - Ethereum</option>
+                    <option value="SOLUSDT">SOL - Solana</option>
+                </select>
+                <button class="button" onclick="initChartForAsset()" style="white-space: nowrap;">Cargar Gráfico</button>
+            </div>
+            <div id="chart" style="width: 100%; height: 500px; border: 1px solid #1aff1a; border-radius: 4px; background: rgba(31, 41, 55, 0.5);"></div>
+            <div class="info" style="margin-top: 15px; font-size: 0.8em;">
+                📊 Indicadores: RSI (14), MACD (12/26/9), Bollinger Bands (20,2), Stochastic (14)<br>
+                ⏱️ Timeframe: 1h | 🎯 500 últimos candles
+            </div>
+        </div>
+
         <div class="grid">
             <!-- Asset Price Card -->
             <div class="card">
@@ -589,18 +609,20 @@
         <div class="card" style="margin-top: 30px;">
             <h2>ℹ️ Estado del Progreso</h2>
             <div class="info">
-                <strong>Paso 5 de 6 - PHASE 5: ADVANCED ORDER FLOW & HISTORIAL</strong><br>
+                <strong>Paso 4 de 6 - PHASE 4: INTERACTIVE CHARTS COMPLETADO ✅</strong><br>
                 ✅ Obtener precio actual de BTC desde Binance API<br>
                 ✅ Obtener niveles de liquidación desde Coinglass API<br>
                 ✅ Integrar Claude API para análisis automático<br>
                 ✅ Motor de Backtest con RSI, MACD, Bollinger Bands<br>
                 ✅ Análisis avanzado de Order Flow<br>
                 ✅ Estadísticas de Trading (Win Rate, Sharpe, Profit Factor)<br>
-                ✅ Historial de Trades y Dashboard<br><br>
+                ✅ Historial de Trades y Dashboard<br>
+                ✅ Gráficos interactivos TradingView con indicadores técnicos<br>
+                ✅ Soporte multi-activo (BTC, ETH, SOL)<br><br>
                 Próximos pasos:<br>
-                ⏳ Integración con Bybit (PHASE 3)<br>
-                ⏳ Gráficos avanzados (TradingView) - PHASE 4<br>
-                ⏳ Optimizaciones y refinamientos - PHASE 6
+                ⏳ Pruebas completas Bybit Testnet (PHASE 3)<br>
+                ⏳ Análisis avanzado de Order Flow (PHASE 5)<br>
+                ⏳ Optimizaciones y refinamientos (PHASE 6)
             </div>
         </div>
 
@@ -887,6 +909,37 @@
             }
         }
 
+        // Initialize chart for selected asset
+        async function initChartForAsset() {
+            const symbol = document.getElementById('chartAssetSelector').value;
+            currentChartAsset = symbol;
+
+            try {
+                // Destroy previous chart if exists
+                if (currentChartState && currentChartState.destroy) {
+                    currentChartState.destroy();
+                }
+
+                // Initialize chart
+                console.log(`📊 Inicializando gráfico para ${symbol}...`);
+                currentChartState = await window.TradingViewInit.initializeChart('chart', symbol);
+
+                if (!currentChartState) {
+                    throw new Error('No se pudo inicializar el gráfico');
+                }
+
+                console.log(`✅ Gráfico cargado: ${symbol}`);
+            } catch (error) {
+                console.error('Error al inicializar gráfico:', error);
+                document.getElementById('chart').innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #ff6666;">
+                        <strong>❌ Error al cargar gráfico</strong><br>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
         // Update asset selector
         document.addEventListener('DOMContentLoaded', () => {
             const assetSelector = document.getElementById('assetSelector');
@@ -901,6 +954,9 @@
             loadApiKey();
             updateAssetLabels();
             fetchAssetPrice();
+
+            // Initialize chart on page load
+            setTimeout(() => initChartForAsset(), 500);
         });
 
         // Auto-refresh price every 5 seconds
@@ -909,6 +965,10 @@
 
         // Store latest liquidation data globally
         let lastLiquidationData = null;
+
+        // Chart state
+        let currentChartState = null;
+        let currentChartAsset = 'BTCUSDT';
 
         // Demo data for when APIs fail
         const DEMO_DATA = {
