@@ -567,7 +567,7 @@
                 const data = await response.json();
 
                 if (!data.data) {
-                    throw new Error('No liquidation data available');
+                    throw new Error(data.message || 'No liquidation data available');
                 }
 
                 const liquidationData = data.data;
@@ -662,12 +662,6 @@
         // Auto-refresh price every 5 seconds
         setInterval(fetchBTCPrice, 5000);
 
-        // Auto-refresh liquidations every 10 seconds if API key is present
-        setInterval(() => {
-            if (localStorage.getItem('coingglassApiKey')) {
-                fetchLiquidations();
-            }
-        }, 10000);
 
         // Store latest liquidation data globally
         let lastLiquidationData = null;
