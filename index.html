@@ -6,6 +6,18 @@
     <title>BTC Trading Analyzer - Order Flow & Liquidations</title>
     <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.production.js"></script>
     <script src="/lib/tradingview-init.js"></script>
+    <!-- PHASE 6: Performance optimization scripts -->
+    <script src="/lib/cache-manager.js"></script>
+    <script src="/lib/chart-loader.js"></script>
+    <!-- PHASE 6: Error handling and resilience -->
+    <script src="/lib/error-handler.js"></script>
+    <script src="/api/middleware/retry.js"></script>
+    <!-- PHASE 1: Multi-asset support [NEW] -->
+    <script src="/ui/asset-selector.js"></script>
+    <!-- PHASE 7: Database and Auth -->
+    <script src="/ui/auth-panel.js"></script>
+    <script src="/lib/db-client.js"></script>
+    <script src="/ui/trades-dashboard.js"></script>
     <style>
         * {
             margin: 0;
@@ -19,6 +31,119 @@
             font-family: 'Monaco', 'Courier New', monospace;
             min-height: 100vh;
             padding: 20px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* PHASE 6: Dark/Light mode styles */
+        body.light-mode {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            color: #222;
+        }
+
+        body.light-mode .card {
+            background: rgba(245, 245, 245, 0.95);
+            border-color: #333;
+        }
+
+        body.light-mode .card h2,
+        body.light-mode .header h1 {
+            color: #333;
+        }
+
+        body.light-mode .price,
+        body.light-mode .liquidation-level-value,
+        body.light-mode .heatmap-volume,
+        body.light-mode .analysis-label {
+            color: #0066cc;
+        }
+
+        body.light-mode .button {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: #fff;
+        }
+
+        body.light-mode .input-group input {
+            background: rgba(200, 200, 200, 0.5);
+            border-color: #666;
+            color: #222;
+        }
+
+        body.light-mode .info {
+            background: rgba(0, 102, 204, 0.1);
+            border-color: #0066cc;
+            color: #0066cc;
+        }
+
+        body.light-mode .status-dot {
+            background: #0066cc;
+        }
+
+        /* PHASE 6: Mobile responsiveness improvements */
+        @media (max-width: 768px) {
+            .container {
+                max-width: 100%;
+                padding: 0;
+            }
+
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8em !important;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .button {
+                padding: 14px 20px !important;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .price {
+                font-size: 2em;
+            }
+
+            #chart {
+                height: 300px !important;
+            }
+
+            .liquidation-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.75em !important;
+            }
+
+            th, td {
+                padding: 8px 4px !important;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .input-group input,
+            .input-group select {
+                width: 100%;
+            }
+
+            .theme-toggle {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+            }
         }
 
         .container {
@@ -148,6 +273,10 @@
             letter-spacing: 1px;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(26, 255, 26, 0.2);
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .button:hover {
@@ -337,14 +466,405 @@
             font-size: 0.75em;
             font-weight: bold;
         }
+
+        /* PHASE 6: Theme toggle button */
+        .theme-toggle {
+            background: rgba(26, 255, 26, 0.1);
+            border: 1px solid #1aff1a;
+            color: #1aff1a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(26, 255, 26, 0.2);
+            box-shadow: 0 0 10px rgba(26, 255, 26, 0.3);
+        }
+
+        body.light-mode .theme-toggle {
+            background: rgba(0, 102, 204, 0.1);
+            border-color: #0066cc;
+            color: #0066cc;
+        }
+
+        body.light-mode .theme-toggle:hover {
+            background: rgba(0, 102, 204, 0.2);
+            box-shadow: 0 0 10px rgba(0, 102, 204, 0.3);
+        }
+
+        /* PHASE 1: Asset Selector Styles */
+        .asset-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .asset-selector label {
+            color: #1aff1a;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            min-width: 60px;
+        }
+
+        .asset-dropdown {
+            flex: 1;
+            max-width: 300px;
+            background: rgba(10, 14, 39, 0.8);
+            border: 1px solid #1aff1a;
+            color: #e0e0e0;
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .asset-dropdown:hover {
+            border-color: #00ff00;
+            box-shadow: 0 0 5px rgba(26, 255, 26, 0.3);
+        }
+
+        body.light-mode .asset-dropdown {
+            background: rgba(200, 200, 200, 0.5);
+            border-color: #0066cc;
+            color: #222;
+        }
+
+        body.light-mode .asset-dropdown:hover {
+            border-color: #0033ff;
+        }
+
+        /* PHASE 7: Auth Panel Styles */
+        .auth-form {
+            background: rgba(20, 30, 60, 0.8);
+            border: 1px solid #1aff1a;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 400px;
+        }
+
+        .auth-header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .auth-header h2 {
+            color: #1aff1a;
+            margin-bottom: 10px;
+        }
+
+        .auth-header p {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #1aff1a;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            background: rgba(10, 14, 39, 0.8);
+            border: 1px solid #1aff1a;
+            color: #e0e0e0;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .form-group small {
+            display: block;
+            color: #666;
+            font-size: 0.8em;
+            margin-top: 3px;
+        }
+
+        .btn-primary, .btn-secondary {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1aff1a, #00cc00);
+            color: #0a0e27;
+            font-weight: bold;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #00cc00, #009900);
+            box-shadow: 0 0 10px rgba(26, 255, 26, 0.3);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        .btn-secondary {
+            background: rgba(26, 255, 26, 0.1);
+            color: #1aff1a;
+            border: 1px solid #1aff1a;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(26, 255, 26, 0.2);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8em;
+        }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        .auth-footer a {
+            color: #1aff1a;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: rgba(255, 100, 100, 0.1);
+            border: 1px solid #ff6464;
+            color: #ff6464;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+
+        .user-panel {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(26, 255, 26, 0.05);
+            border: 1px solid #1aff1a;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            font-size: 2em;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .user-email {
+            color: #1aff1a;
+            font-weight: bold;
+        }
+
+        .user-id {
+            color: #666;
+            font-size: 0.8em;
+        }
+
+        /* Trades Dashboard Styles */
+        .trades-panel {
+            background: rgba(20, 30, 60, 0.5);
+            border: 1px solid #1aff1a;
+            border-radius: 4px;
+            padding: 15px;
+        }
+
+        .trades-header {
+            margin-bottom: 20px;
+        }
+
+        .trades-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat {
+            background: rgba(10, 14, 39, 0.8);
+            border: 1px solid #1aff1a;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat .label {
+            display: block;
+            color: #888;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        .stat .value {
+            display: block;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .stat .value.positive {
+            color: #00ff00;
+        }
+
+        .stat .value.negative {
+            color: #ff6464;
+        }
+
+        .trades-table-wrapper {
+            overflow-x: auto;
+            margin-top: 15px;
+        }
+
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .trades-table thead {
+            background: rgba(26, 255, 26, 0.05);
+            border-bottom: 2px solid #1aff1a;
+        }
+
+        .trades-table th {
+            color: #1aff1a;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75em;
+        }
+
+        .trades-table tbody tr {
+            border-bottom: 1px solid rgba(26, 255, 26, 0.1);
+        }
+
+        .trades-table tbody tr.positive {
+            background: rgba(0, 255, 0, 0.05);
+        }
+
+        .trades-table tbody tr.negative {
+            background: rgba(255, 100, 100, 0.05);
+        }
+
+        .trades-table td {
+            padding: 10px;
+            color: #e0e0e0;
+        }
+
+        .trades-table .positive {
+            color: #00ff00;
+        }
+
+        .trades-table .negative {
+            color: #ff6464;
+        }
+
+        .trades-table .symbol {
+            color: #1aff1a;
+            font-weight: bold;
+        }
+
+        .trades-table .actions {
+            text-align: center;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: rgba(20, 30, 60, 0.95);
+            border: 1px solid #1aff1a;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            color: #1aff1a;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+        }
+
+        #auth-container {
+            margin-bottom: 30px;
+        }
+
+        #trades-container {
+            margin-top: 30px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                <span id="themeIcon">🌙</span>
+            </button>
             <h1>₿ BTC TRADING ANALYZER</h1>
             <p>Order Flow & Liquidation Analysis</p>
         </div>
+
+        <!-- PHASE 7: Authentication Panel -->
+        <div id="auth-container"></div>
+
+        <!-- PHASE 7: Trades Dashboard -->
+        <div id="trades-container"></div>
 
         <!-- Configuration Section -->
         <div class="card" style="margin-bottom: 30px;">
@@ -630,6 +1150,42 @@
     </div>
 
     <script>
+        // PHASE 6: Dark/Light mode toggle
+        function toggleTheme() {
+            const body = document.body;
+            const isDark = body.classList.contains('light-mode');
+            const themeIcon = document.getElementById('themeIcon');
+
+            if (isDark) {
+                body.classList.remove('light-mode');
+                themeIcon.textContent = '🌙';
+                localStorage.setItem('theme', 'dark');
+                console.log('🌙 Switched to dark mode');
+            } else {
+                body.classList.add('light-mode');
+                themeIcon.textContent = '☀️';
+                localStorage.setItem('theme', 'light');
+                console.log('☀️ Switched to light mode');
+            }
+        }
+
+        // Initialize theme from localStorage
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const themeIcon = document.getElementById('themeIcon');
+
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                themeIcon.textContent = '☀️';
+            } else {
+                document.body.classList.remove('light-mode');
+                themeIcon.textContent = '🌙';
+            }
+        }
+
+        // Initialize theme on page load
+        document.addEventListener('DOMContentLoaded', initTheme);
+
         // Get current selected asset
         function getCurrentAsset() {
             return document.getElementById('assetSelector').value || 'BTC';
@@ -1612,6 +2168,75 @@
                 `;
             }
         }
+
+        // PHASE 1+7: Initialize Asset Selector, Authentication and Database
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize asset selector (PHASE 1)
+            const assetSelector = new AssetSelector('asset-selector');
+            await assetSelector.render();
+
+            // Load user from storage if exists
+            authPanel.loadFromStorage();
+            authPanel.render();
+
+            // Initialize database client
+            const dbClient = new DatabaseClient(authPanel);
+
+            // Initialize trades dashboard
+            const tradesDashboard = new TradesDashboard('trades-container', dbClient);
+
+            // Render dashboards
+            if (authPanel.currentUser) {
+                tradesDashboard.render();
+            }
+
+            // Listen for login/logout events
+            window.addEventListener('userLoggedIn', () => {
+                authPanel.render();
+                tradesDashboard.render();
+                console.log('✅ Usuario conectado');
+            });
+
+            window.addEventListener('userLoggedOut', () => {
+                authPanel.render();
+                const tradesContainer = document.getElementById('trades-container');
+                if (tradesContainer) {
+                    tradesContainer.innerHTML = '';
+                }
+                console.log('👋 Usuario desconectado');
+            });
+
+            // Refresh trades dashboard every 30 seconds if logged in
+            setInterval(() => {
+                if (authPanel.currentUser) {
+                    tradesDashboard.render();
+                }
+            }, 30000);
+        });
+
+        // Save analysis to database when running analysis
+        const originalRunClaudeAnalysis = window.runClaudeAnalysis;
+        window.runClaudeAnalysis = async function() {
+            const result = await originalRunClaudeAnalysis.call(this);
+
+            // If logged in, save analysis to database
+            if (authPanel.currentUser && result && result.success) {
+                const dbClient = new DatabaseClient(authPanel);
+                const asset = getCurrentAsset();
+                const currentPrice = document.getElementById('assetPrice').textContent;
+
+                await dbClient.saveAnalysis({
+                    symbol: asset,
+                    price: parseFloat(currentPrice.replace(/,/g, '')),
+                    analysis: result,
+                    timestamp: new Date().toISOString()
+                });
+
+                console.log('✅ Análisis guardado en base de datos');
+            }
+
+            return result;
+        };
     </script>
 </body>
 </html>

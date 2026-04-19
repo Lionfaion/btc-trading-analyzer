@@ -1,118 +1,149 @@
-# Configuración de Supabase para BTC Trading Analyzer
+# Supabase Setup Guide
 
-## Paso 1: Crear Proyecto en Supabase
+**FASE 7.0 Database Foundation - Quick Start**
 
-1. Ir a https://supabase.com/dashboard
-2. Click en "New Project"
-3. Llenar formulario:
-   - **Organization:** (crear nueva o seleccionar)
-   - **Project name:** `btc-trading-analyzer`
-   - **Database password:** guardar en lugar seguro
-   - **Region:** seleccionar cercano a tu ubicación
-   - **Pricing plan:** Free (suficiente para MVP)
-4. Click "Create new project"
-5. Esperar 2-3 minutos a que se cree
+---
 
-## Paso 2: Obtener Credenciales
+## Step 1: Create Supabase Account & Project
 
-1. Una vez creado el proyecto, ir a **Settings → API**
-2. Copiar y guardar en lugar seguro:
-   - **Project URL** → esto es tu `SUPABASE_URL`
-   - **anon public** key → esto es tu `SUPABASE_ANON_KEY`
+1. Go to [supabase.com](https://supabase.com)
+2. Sign up or log in
+3. Create a new project:
+   - **Name:** btc-trading-analyzer
+   - **Database Password:** (save securely)
+   - **Region:** Choose closest to your location
 
-Ejemplo:
-```
-SUPABASE_URL=https://fjusqtpwssycokwobtzj.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
+4. Wait for database to initialize (2-3 minutes)
 
-## Paso 3: Crear Tablas en Supabase
+---
 
-1. En Supabase Dashboard, ir a **SQL Editor**
-2. Click en **New Query**
-3. Copiar TODO el contenido de `db-schema.sql` del proyecto
-4. Pegar en el editor SQL
-5. Click en **Run** (Ctrl+Enter)
-6. Ver confirmación: ✅ Success
+## Step 2: Create Database Schema
 
-*Alternativa:* Ejecutar comando desde CLI:
-```bash
-psql "postgresql://postgres:PASSWORD@localhost:5432/postgres" < db-schema.sql
-```
+1. In Supabase dashboard, go to **SQL Editor**
+2. Open new query tab
+3. Copy entire content from `db-schema.sql` in project root
+4. Paste into SQL Editor
+5. Click **Run**
 
-## Paso 4: Verificar Tablas Creadas
+✅ Tables created: strategies, trades, candles_ohlcv, analysis_history, bybit_credentials
 
-En Supabase Dashboard → **Table Editor**, deberías ver:
-- ✅ candles_ohlcv
-- ✅ trades
-- ✅ analysis_history
-- ✅ strategies
-- ✅ bybit_credentials
-- ✅ backtest_results
-- ✅ users
+---
 
-## Paso 5: Configurar en Railway
+## Step 3: Get Connection String
 
-1. En Railway Dashboard del proyecto btc-trading-analyzer
-2. Ir a **Variables**
-3. Agregar:
+1. Go to **Settings → Database**
+2. Find **Connection String** section
+3. Copy the "Nodejs" connection string:
    ```
-   SUPABASE_URL=https://xxxx.supabase.co
-   SUPABASE_ANON_KEY=eyJxxx...
+   postgresql://postgres.[project-id]:[password]@aws-0-[region].db.supabase.co:5432/postgres
    ```
-4. Click en **Save**
-5. Railway redeploya automáticamente
 
-## Paso 6: Verificar Conexión
+4. Add to `.env.local`:
+   ```
+   SUPABASE_URL=https://[project-id].supabase.co
+   SUPABASE_ANON_KEY=[copy from Settings → API Keys → anon]
+   SUPABASE_SERVICE_KEY=[copy from Settings → API Keys → service_role]
+   DATABASE_URL=postgresql://...
+   ```
 
-### Local (desarrollo):
-```bash
-cd btc-trading-analyzer
-echo "SUPABASE_URL=https://xxxx.supabase.co" > .env
-echo "SUPABASE_ANON_KEY=eyJxxx..." >> .env
-npm install
-npm start
-# Abrir http://localhost:3000
+---
+
+## Step 4: Get API Keys
+
+1. In Supabase, go to **Settings → API**
+2. Copy **Project URL** (e.g., `https://abc123.supabase.co`)
+3. Copy **anon public** key
+4. Copy **service_role** key
+
+Add to `.env.local`:
+```
+SUPABASE_URL=https://abc123.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_SERVICE_KEY=eyJhbGciOi...
 ```
 
-### Railway (producción):
-1. Una vez variables agregadas, esperar redeploy (30-60s)
-2. Abrir URL de Railway en navegador
-3. Click "Sincronizar Histórico" → si no hay error, conexión OK
+---
+
+## Step 5: Enable Auth (Optional for multi-user)
+
+1. In Supabase, go to **Authentication → Providers**
+2. Enable **Email** (already enabled by default)
+3. Go to **Settings → Auth**
+4. Configure:
+   - **Site URL:** `http://localhost:3000` (dev) or your production URL
+   - **Redirect URLs:** `http://localhost:3000/auth/callback`
+
+---
+
+## Step 6: Test Connection
+
+Run in terminal:
+```bash
+npm test -- __tests__/supabase-connection.test.js
+```
+
+Or test manually via API:
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+Expected response:
+```json
+{
+  "success": true,
+  "user": { "id": "...", "email": "test@example.com" },
+  "session": { "accessToken": "...", "refreshToken": "..." }
+}
+```
+
+---
+
+## Step 7: Update Vercel Environment Variables
+
+1. Go to Vercel project settings
+2. Add environment variables:
+   ```
+   SUPABASE_URL=https://...
+   SUPABASE_ANON_KEY=eyJ...
+   SUPABASE_SERVICE_KEY=eyJ...
+   ```
+
+3. Redeploy: `vercel --prod`
+
+---
 
 ## Troubleshooting
 
-### Error: "Missing SUPABASE_URL or SUPABASE_ANON_KEY"
-- [ ] Verificar que variables están en Railway Dashboard
-- [ ] Verificar que no hay espacios en blanco
-- [ ] Redeploy fuerza reinicio: push a GitHub
+### Error: "CORS policy"
+- Add your domain to Supabase **Settings → API → CORS**
+- Example: `http://localhost:3000`
 
-### Error: "Failed to connect to Supabase"
-- [ ] Verificar URL está correcta (sin / al final)
-- [ ] Verificar anon key está completa (sin truncar)
-- [ ] Verificar proyecto en Supabase está activo (no borrado)
+### Error: "Authentication failed"
+- Verify SUPABASE_ANON_KEY is correct
+- Check Supabase is accessible: `curl https://[project-id].supabase.co`
 
-### Error: "Table does not exist"
-- [ ] Ejecutar db-schema.sql nuevamente
-- [ ] Verificar en Table Editor que tablas aparecen
-- [ ] Revisar SQL query por errores
+### Error: "Table not found"
+- Verify db-schema.sql ran successfully
+- Check Supabase SQL Editor → Run again
 
-### Error: "Permission denied"
-- [ ] Tablas creadas con role incorrecto
-- [ ] Ejecutar db-schema.sql como admin user
-- [ ] En Supabase, verificar RLS policies (debería estar disabled para MVP)
+### Error: "Row Level Security (RLS) policy"
+- If getting 403 on queries, RLS policies need adjustment
+- For demo mode, disable RLS: `ALTER TABLE [table] DISABLE ROW LEVEL SECURITY;`
 
-## Security Notes (IMPORTANTE)
+---
 
-⚠️ **Para MVP solo:**
-- Anon key está publicada en cliente → OK para desarrollo
-- RLS (Row Level Security) está deshabilitado → OK para MVP
-- **Antes de producción:** Habilitar RLS y usar service role key en servidor
+## Next Steps
 
-## Próximas Fases
+1. ✅ Frontend integration (save analysis to DB)
+2. ✅ Trade history UI
+3. ✅ Strategy management UI
+4. ✅ Tests for DB endpoints
+5. ✅ User dashboard
 
-- **Fase 3:** Encriptar credenciales de Bybit antes de guardar en DB
-- **Fase 5:** Habilitar RLS para user isolation
-- **Fase 6:** Backup automático diario a AWS S3
+See `PHASE-7-DATABASE-FOUNDATION.md` for full plan.
 
-¡Listo! Supabase configurado y connected.
+---
+
+**Supabase Documentation:** https://supabase.com/docs
