@@ -7,6 +7,15 @@ const publicPath = path.join(__dirname, 'public');
 
 const server = http.createServer((req, res) => {
   try {
+    // Root path - serve index.html
+    if (req.url === '/') {
+      const indexPath = path.join(publicPath, 'index.html');
+      const content = fs.readFileSync(indexPath);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(content);
+      return;
+    }
+
     // API health check
     if (req.url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
