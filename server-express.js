@@ -4,28 +4,24 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Debug: Print environment variables
 console.log('📍 Environment variables check:');
 console.log('  SUPABASE_URL:', process.env.SUPABASE_URL ? 'SET' : 'MISSING');
 console.log('  SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING');
 console.log('  SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING');
 
-// Load API handler once at startup
 let apiHandler;
 try {
   apiHandler = require('./api/handler.js');
   console.log('✅ API handler loaded');
 } catch (e) {
   console.error('❌ Failed to load API handler:', e.message);
-  console.error('Stack:', e.stack);
   process.exit(1);
 }
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS headers
+// CORS
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -37,65 +33,58 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static files from public directory (highest priority)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Static files from root directory
-app.use(express.static(__dirname));
-
-// Diagnostic endpoint
-app.get('/api/diagnose', (req, res) => {
-  res.json({
-    status: 'ok',
-    hasSupabaseUrl: !!process.env.SUPABASE_URL,
-    hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    supabaseUrl: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 20) + '...' : 'MISSING',
-    nodeEnv: process.env.NODE_ENV || 'development'
-  });
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 // API routes
 app.use('/api', (req, res, next) => {
   console.log(`📍 ${req.method} ${req.path}`);
-
   const route = req.path.slice(1).split('/').filter(Boolean);
   req.query = { route };
 
-  console.log(`📍 Calling handler with route:`, route);
-
   try {
     const handlerPromise = apiHandler(req, res);
-    console.log(`📍 Handler promise created`);
-
-    Promise.resolve(handlerPromise).then(() => {
-      console.log(`📍 Handler completed`);
-    }).catch(err => {
+    Promise.resolve(handlerPromise).catch(err => {
       console.error('❌ Handler error:', err.message);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Internal server error', details: err.message });
       }
     });
   } catch (err) {
-    console.error('❌ Sync handler error:', err.message);
+    console.error('❌ Sync error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error', details: err.message });
     }
   }
 });
 
-// SPA fallback - serve index.html for any unmatched routes
+// Static files
+try {
+  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(__dirname));
+} catch (e) {
+  console.error('Error setting up static files:', e.message);
+}
+
+// SPA fallback
 app.get('*', (req, res) => {
-  console.log(`📍 SPA fallback for ${req.path}`);
-  res.sendFile(path.join(__dirname, 'public', 'index.html'), err => {
+  const publicIndexPath = path.join(__dirname, 'public', 'index.html');
+  const rootIndexPath = path.join(__dirname, 'index.html');
+
+  res.sendFile(publicIndexPath, (err) => {
     if (err) {
-      console.error('Error serving index.html:', err.message);
-      res.sendFile(path.join(__dirname, 'index.html'));
+      res.sendFile(rootIndexPath, (err2) => {
+        if (err2) {
+          res.status(404).send('index.html not found');
+        }
+      });
     }
   });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error('❌ Express error:', err);
   res.status(500).json({ error: 'Internal server error', details: err.message });
