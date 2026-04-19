@@ -4,8 +4,8 @@
   "description": "Complete 6-phase BTC trading platform with Supabase, backtesting, Bybit integration, and TradingView charts",
   "main": "server.js",
   "scripts": {
-    "start": "node server-debug.js",
-    "dev": "node server-debug.js",
+    "start": "node server-robust.js",
+    "dev": "node server-robust.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
