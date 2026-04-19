@@ -120,8 +120,8 @@ async function handler(req, res) {
 
     // DB endpoints - return empty data
     if (section === 'db') {
-      const user = await getUser(req);
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      // const user = await getUser(req);
+      // if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
       if (action === 'strategies') return res.json({ strategies: [] });
       if (action === 'backtests') return res.json({ backtests: [] });
@@ -143,7 +143,7 @@ async function handler(req, res) {
         return res.json({ positions: [], count: 0 });
       }
       if (action === 'connect' && req.method === 'POST') {
-        if (!user) return res.status(401).json({ error: 'No estás autenticado' });
+        // if (!user) return res.status(401).json({ error: 'No estás autenticado' });
         return res.json({ success: true });
       }
     }

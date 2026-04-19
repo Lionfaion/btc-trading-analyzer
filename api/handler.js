@@ -159,8 +159,8 @@ async function handler(req, res) {
 
     // DB endpoints - return empty data
     if (section === 'db') {
-      const user = await getUser(req);
-      if (!user) return jsonResponse(res, 401, { error: 'Unauthorized' });
+      // const user = await getUser(req);
+      // if (!user) return jsonResponse(res, 401, { error: 'Unauthorized' });
 
       if (action === 'strategies') return jsonResponse(res, 200, { strategies: [] });
       if (action === 'backtests') return jsonResponse(res, 200, { backtests: [] });
