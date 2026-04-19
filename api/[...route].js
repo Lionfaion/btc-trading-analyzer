@@ -46,11 +46,10 @@ export default async function handler(req, res) {
 
     // Bybit API
     if (section === 'bybit') {
-      if (!user && action !== 'connect') {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
       if (action === 'connect' && req.method === 'POST') {
+        if (!user) {
+          return res.status(401).json({ error: 'No estás autenticado' });
+        }
         const { apiKey, apiSecret, isTestnet } = body;
         const encrypted = Buffer.from(apiKey).toString('base64');
         const encryptedSecret = Buffer.from(apiSecret).toString('base64');
@@ -61,6 +60,10 @@ export default async function handler(req, res) {
           is_testnet: isTestnet
         }]);
         return res.json({ success: !error, error: error?.message });
+      }
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       if (action === 'status' && req.method === 'GET') {
@@ -130,6 +133,22 @@ export default async function handler(req, res) {
           .select('*')
           .eq('user_id', user.id);
         return res.json({ automations: data || [], error: error?.message });
+      }
+
+      if (action === 'strategies' && req.method === 'GET') {
+        const { data, error } = await supabase
+          .from('strategies')
+          .select('*')
+          .eq('user_id', user.id);
+        return res.json({ strategies: data || [], error: error?.message });
+      }
+
+      if (action === 'backtests' && req.method === 'GET') {
+        const { data, error } = await supabase
+          .from('backtests')
+          .select('*')
+          .eq('user_id', user.id);
+        return res.json({ backtests: data || [], error: error?.message });
       }
     }
 

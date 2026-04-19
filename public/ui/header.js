@@ -47,7 +47,7 @@ class Header {
 
   async checkBybitStatus() {
     try {
-      const token = localStorage.getItem('sb-token');
+      const token = localStorage.getItem('authToken');
       if (!token) {
         this.setBybitStatus(false);
         return;

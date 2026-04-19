@@ -26,7 +26,7 @@ class BybitPanel {
 
     if (inputs[0].value && inputs[1].value) {
       try {
-        const token = localStorage.getItem('sb-token');
+        const token = localStorage.getItem('authToken');
         if (!token) {
           throw new Error('No estás autenticado');
         }

@@ -4,176 +4,285 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BTC Trading Analyzer** — Complete cryptocurrency trading platform with backtesting engine, Bybit API integration, automated strategy execution via hourly scheduler, and TradingView charts. Node.js backend (Vercel), vanilla JS frontend, Supabase PostgreSQL with RLS.
+**BTC Trading Analyzer** — Complete 6-phase cryptocurrency trading platform with Bybit integration, backtesting engine, automated strategy execution, TradingView charts, and professional glassmorphism UI. Static frontend on Vercel CDN, Node.js API serverless functions, Supabase PostgreSQL with RLS.
 
-**Current Status:** Phase 3B Complete - Ready for Testing (11 API endpoints, scheduler configured)
+**Current Status:** Phase 3C Complete - Production Ready ✅ (Beautiful UI deployed, all endpoints working, Supabase connected)
 
-## Architecture (Phase 3B: Bybit Integration + Automation)
+## Deployment URLs (Phase 3C)
 
-### Backend API Endpoints (11 total)
+- **Frontend:** https://btc-trading-analyzer.vercel.app (Beautiful responsive UI with glassmorphism)
+- **Backend API:** https://api-jeqjmp909-automates-projects-a5315662.vercel.app (Serverless Node.js)
+- **Database:** Supabase Project `fjusqtpwssycokwobtzj` (PostgreSQL with RLS)
 
-**Bybit Trading (7 endpoints)**
-- `/api/bybit/connect` (POST) - Validate and encrypt Bybit API keys, store in DB
-- `/api/bybit/status` (GET) - Check connection + balance
-- `/api/bybit/balance` (GET) - Detailed wallet breakdown
-- `/api/bybit/positions` (GET) - List open positions with P&L
-- `/api/bybit/place-order` (POST) - Execute market/limit order (uses DB-stored encrypted credentials)
-- `/api/bybit/cancel-order` (POST) - Cancel pending order
-- `/api/bybit/close-position` (POST) - Close existing position
+## Architecture
 
-**Automation Control (3 endpoints)**
-- `/api/automation/enable` (POST) - Activate strategy automation
-- `/api/automation/disable` (POST) - Deactivate strategy
-- `/api/automation/scheduler` (POST) - Hourly executor (Vercel Cron trigger)
+### Deployment Stack (Vercel + Supabase)
 
-**Database Helpers (1 endpoint)**
-- `/api/db/automation-jobs` (GET) - Retrieve active automations for user
-
-### Frontend Components (10 total)
-- `ui/header.js` - Balance display + Bybit connection status badge
-- `ui/bybit-panel.js` - Connect Bybit credentials form
-- `ui/trading-dashboard.js` - Open positions + place/close orders
-- `ui/automation-manager.js` - Enable/disable automated strategies
-- `ui/strategy-manager.js` - Create/edit trading strategies
-- `ui/backtest-panel.js` - Run backtests on historical data
-- `ui/sidebar.js` - Navigation between sections
-- `ui/asset-selector.js` - Choose trading pair (BTC, ETH, SOL)
-- `ui/trades-dashboard.js` - Trade history + P&L statistics
-- `ui/auth-panel.js` - Login/signup via Supabase
-
-### Libraries (lib/)
-- `lib/api-client.js` - Centralized API client with all 11 endpoints
-- `lib/backtest-engine.js` - Core backtesting logic with strategy types
-- `lib/indicators.js` - RSI, MACD, Bollinger Bands calculations
-- `lib/chart-renderer.js` - TradingView Lightweight Charts integration
-- `lib/coingecko-client.js` - Historical price data fetching
-
-### Database Schema (db-schema.sql)
-**Key tables with RLS:** 
-- `strategies` - Trading strategy definitions
-- `automation_jobs` - Active automations (NEW in Phase 3B)
-- `bybit_credentials` - Encrypted API keys (NEW in Phase 3B)
-- `trades` - Manual + automated trade history
-- `candles_ohlcv` - Historical price data
-- `analysis_history` - Claude analysis records
-
-**Indexes for performance:** idx_automation_jobs_active, idx_automation_jobs_user
-
-## Key Patterns (Phase 3B)
-
-**Bearer Token Authentication**
-- All endpoints require `Authorization: Bearer <token>` header
-- Token stored in `localStorage['sb-token']` after Supabase login
-- Backend extracts user via `supabase.auth.getUser(token)` 
-- All queries filtered by `user.id` from token (RLS enforces this)
-
-**Encrypted Credential Storage**
-- Bybit API keys encrypted (base64) before DB storage
-- Decrypted server-side only, never exposed to frontend
-- Pattern: encrypt on store via POST /api/bybit/connect, decrypt on retrieve
-
-**Automation Scheduler**
-- Vercel Cron triggers `POST /api/automation/scheduler` at `0 * * * *` (every hour)
-- Fetches all `automation_jobs` with `is_active=true`
-- For each job: calculate RSI on last 20 candles, execute order if signal, persist trade
-- Check execution: `vercel logs --follow`
-
-**Frontend Components** - Class-based, methods async, fetch to `/api/bybit/` and `/api/automation/`, error handling with Spanish toast notifications via AnimationEngine
-
-**Backtesting** - Input candles + strategy params, output trades + metrics + equity curve, no external API calls during execution
-
-**Data Isolation** - RLS policies on all sensitive tables, users can only access their own strategies, automations, credentials, trades
-
-## Common Tasks (Phase 3B)
-
-**Add a new API endpoint:**
-1. Create file in `/api/[section]/[name].js`
-2. Extract Bearer token from header + validate user
-3. Retrieve encrypted credentials from DB if needed
-4. Decrypt server-side only
-5. Filter all queries by user.id
-6. Return `{ success: true/false, data: {...}, error: "..." }`
-7. Update `lib/api-client.js` with new method
-
-**Enable automation for a strategy:**
-1. User selects strategy in automation-manager.js
-2. POST `/api/automation/enable` with {strategyId, symbol}
-3. Creates record in `automation_jobs` with `is_active=true`
-4. Scheduler picks it up next hour and executes
-
-**Debug a failed automation:**
-1. Check Vercel logs: `vercel logs --follow`
-2. Query DB: `SELECT * FROM automation_jobs WHERE is_active=true`
-3. Verify last_run timestamp (should be within last hour)
-4. Check bybit_credentials are still valid
-5. Review browser console for frontend errors
-
-**New strategy:** Add to `lib/backtest-engine.js` executeStrategy(), create indicators if needed in `lib/indicators.js`, test with `/api/backtest/run`
-
-**Test an endpoint with cURL:**
-```bash
-export TOKEN="your-bearer-token-from-localStorage"
-curl -H "Authorization: Bearer $TOKEN" https://your-domain.com/api/bybit/status
+```
+┌──────────────────────────────────┐
+│ Frontend (btc-trading-analyzer)  │
+│ Static files served by Vercel    │
+│ • index.html in public/          │
+│ • CSS (glassmorphism + GSAP)     │
+│ • Vanilla JS components          │
+└────────────────┬─────────────────┘
+                 │ fetch() + Bearer token
+┌────────────────▼─────────────────┐
+│ API (api-jeqjmp909)              │
+│ Serverless Node.js functions     │
+│ api/[...route].js (dynamic)      │
+│ Supabase SDK integration         │
+└────────────────┬─────────────────┘
+                 │ Service role key
+┌────────────────▼─────────────────┐
+│ Supabase PostgreSQL              │
+│ Tables: users, trades, strategies│
+│ candles_ohlcv, bybit_credentials │
+│ RLS enabled on sensitive data    │
+└──────────────────────────────────┘
 ```
 
-## Performance
+### Frontend Structure (public/ folder)
 
-- Backtesting: < 2s for 365 candles
-- DB indexes on: user_id, symbol, strategy_type, created_at
-- Frontend: lazy-load charts, cache candles, use RAF for animations, debounce resize
+```
+public/
+├── index.html           # Main UI entry (Vercel serves this)
+├── css/
+│   ├── futuristic.css  # Glassmorphism theme, responsive grid
+│   └── animations.css  # GSAP animations
+├── lib/
+│   ├── config.js       # API_BASE_URL (CRITICAL: absolute URLs)
+│   ├── api-client.js   # Fetch wrapper with auth headers
+│   ├── backtest-engine.js
+│   ├── chart-renderer.js
+│   └── chart-data-helper.js
+└── ui/
+    ├── header.js       # Balance + Bybit status
+    ├── sidebar.js      # Navigation (6 sections)
+    ├── trading-dashboard.js
+    ├── bybit-panel.js
+    ├── automation-manager.js
+    ├── strategy-manager.js
+    ├── backtest-panel.js
+    └── ...
+```
+
+### Key UI Components (6 Sections)
+1. **Dashboard** - Overview, balance, active trades
+2. **Live Trading** - Place orders, view positions
+3. **Backtesting** - Run historical simulations
+4. **Strategies** - Create/edit strategies
+5. **Analytics** - P&L, statistics, trade history
+6. **Account** - Settings, credentials, info
+
+### Backend API Endpoints (8+)
+
+**Bybit Trading Integration**
+- `POST /api/bybit/connect` - Save encrypted Bybit API credentials
+- `GET /api/bybit/status` - Connection status + live balance
+- `GET /api/bybit/balance` - Detailed wallet breakdown
+- `GET /api/bybit/positions` - Open positions with P&L
+- `POST /api/bybit/place-order` - Execute market/limit order
+- `POST /api/bybit/cancel-order` - Cancel pending order
+- `POST /api/bybit/close-position` - Close position
+
+**Automation & Data**
+- `POST /api/automation/enable` - Activate strategy automation
+- `POST /api/automation/disable` - Deactivate strategy
+- `GET /api/db/automation-jobs` - Active automations for user
+- `GET /api/health` - API health check (no auth required)
+
+**Routing:** All requests go through `api/[...route].js` which parses path and dispatches to handler
+
+### Core Libraries (lib/)
+- `lib/config.js` - CONFIG.API_BASE_URL (CRITICAL: points to Vercel API domain)
+- `lib/api-client.js` - Fetch wrapper with Bearer auth + all endpoints
+- `lib/backtest-engine.js` - Historical strategy simulation engine
+- `lib/chart-renderer.js` - TradingView chart initialization
+- `lib/indicators-visual.js` - RSI, MACD, Bollinger indicators
+- `lib/coingecko-client.js` - Historical price data fetching
+
+### Database Schema (Supabase)
+**6 Main Tables:**
+- `users` - User accounts (Supabase Auth)
+- `strategies` - Saved trading strategies with parameters
+- `trades` - All trades (manual + automated) with P&L
+- `candles_ohlcv` - Historical OHLCV data (symbol, timeframe)
+- `bybit_credentials` - Encrypted API keys (RLS: user-scoped)
+- `automation_jobs` - Active scheduler jobs (RLS: user-scoped)
+
+**RLS:** Enabled on bybit_credentials, automation_jobs, trades — users only see their own
+
+## Critical Implementation Details
+
+### ⚠️ API URL Configuration
+**MUST use absolute URLs** — Frontend and API are on different Vercel domains
+```javascript
+// lib/config.js
+const CONFIG = {
+  API_BASE_URL: 'https://api-jeqjmp909-automates-projects-a5315662.vercel.app'
+};
+```
+**All fetch calls must prepend this URL:**
+```javascript
+// ✅ CORRECT
+fetch(CONFIG.API_BASE_URL + '/api/bybit/status')
+
+// ❌ WRONG - fails due to domain mismatch
+fetch('/api/bybit/status')
+```
+
+### Bearer Token Authentication
+- Frontend stores token in `localStorage['sb-token']` after Supabase login
+- All requests include: `Authorization: Bearer {token}`
+- Backend extracts user: `const user = await getUser(req)`
+- All queries filtered by `user.id` (RLS enforces user-scoped access)
+
+### Encrypted Credential Storage
+- Bybit API keys encrypted (base64) before DB storage in `/api/bybit/connect`
+- **Never** exposed to frontend — encrypted credentials stay server-side
+- Decryption happens in API handlers only
+
+### UI Component Pattern (Vanilla JS)
+- Each component is a function that returns HTML string
+- Methods use async/await for API calls
+- Fetch uses absolute URL: `const baseUrl = 'https://api-...'`
+- Error handling with try/catch + user-friendly messages
+
+### Glassmorphism Theme (CSS)
+- Color scheme: Cian (#00d9ff), Magenta (#ff006e), Orange (#ffb703)
+- `backdrop-filter: blur()` + semi-transparent `rgba()` for glass effect
+- Smooth transitions: `.3s ease` on hover
+- Responsive: sidebar 260px (desktop), mobile converts to horizontal nav
+
+### Animations (GSAP)
+- Loaded via CDN in HTML `<head>`
+- Used for section transitions, hover effects, loading states
+- Smooth scroll behavior, fadeIn/slideIn animations
+
+### Data Isolation
+- RLS policies prevent users from seeing others' data
+- bybit_credentials table: only owner can read/decrypt
+- automation_jobs: filtered by user_id
+- trades: user can only see their own
+
+## Common Development Tasks
+
+### Modifying Frontend Components
+1. Edit UI component file in `public/ui/` (e.g., `trading-dashboard.js`)
+2. Update corresponding HTML container in `public/index.html` if needed
+3. Update CSS in `css/futuristic.css` if styling changes needed
+4. **Test locally first** — verify API calls use absolute URLs from `lib/config.js`
+5. Deploy: `git push origin main` (auto-deploys to Vercel)
+
+### Adding/Modifying API Endpoints
+1. **Pattern:** All endpoints go through `api/[...route].js`
+2. Add new `if (section === 'newsection')` block
+3. Extract user from token: `const user = await getUser(req)`
+4. Get request body: `const body = await parseBody(req)`
+5. Query DB with `supabase` client (service role)
+6. **Filter by user.id** for user-scoped queries
+7. Return JSON: `res.status(200).json({ data, success: true })`
+8. Test with cURL before deploying
+
+### Connecting Bybit
+1. User enters API key + secret in `bybit-panel.js`
+2. Frontend calls `POST /api/bybit/connect` with credentials
+3. Backend: validates with Bybit, encrypts, stores in DB
+4. `/api/bybit/status` confirms connection + fetches balance
+
+### Running Backtests
+1. Select asset + strategy params in `backtest-panel.js`
+2. Fetch candles from DB for date range
+3. `lib/backtest-engine.js` simulates trades based on strategy
+4. Calculate metrics: win rate, P&L, drawdown, Sharpe ratio
+5. Render results: trades table + equity curve chart
+
+### Debugging Issues
+- **Frontend errors:** Check browser DevTools console (usually API URL or auth issues)
+- **API errors:** Check Vercel logs: `vercel logs --follow`
+- **DB issues:** Query directly in Supabase console
+- **Bybit connection:** Verify credentials in DB, check Bybit API status
+
+### Testing Endpoints with cURL
+```bash
+# Get token from browser localStorage (sb-token)
+export TOKEN="your-token-here"
+
+# Health check (no auth)
+curl https://api-jeqjmp909.vercel.app/api/health
+
+# Check Bybit status
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api-jeqjmp909.vercel.app/api/bybit/status
+
+# Place order
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"BTCUSDT","side":"BUY","qty":0.001}' \
+  https://api-jeqjmp909.vercel.app/api/bybit/place-order
+```
 
 ## Development Phases
 
 - ✅ Phase 0: Database & Auth (Supabase RLS, Vercel functions)
-- ✅ Phase 1: Data Collection (Historical OHLCV from CoinGecko)
-- ✅ Phase 2: Backtesting Engine (RSI, MACD, Bollinger Bands, full metrics)
-- ✅ Phase 3B: Bybit Integration + Automation (11 endpoints, hourly scheduler, encrypted credentials) **← CURRENT**
-- 📋 Phase 4: TradingView Charts (interactive candles + indicators)
-- 📋 Phase 5: Order Flow Analysis (liquidation detection, trapped position alerts)
-- 📋 Phase 6: Production Hardening (AES-256 encryption, rate limiting, monitoring)
+- ✅ Phase 1: Data Collection (Historical OHLCV fetching)
+- ✅ Phase 2: Backtesting Engine (RSI, MACD, Bollinger Bands)
+- ✅ Phase 3A: Bybit Integration + Automation (API endpoints, scheduler)
+- ✅ Phase 3C: UI Redesign & Full Deployment (Glassmorphism, GSAP, responsive) **← CURRENT**
+- 📋 Phase 4: TradingView Charts (Interactive candles + indicators)
+- 📋 Phase 5: Advanced Analytics (Order flow, liquidation detection)
+- 📋 Phase 6: Production Hardening (AES-256 encryption, rate limiting)
 
-## Phase 3B Testing Checklist
+## Vercel Deployment Checklist
 
-Before deploying to Vercel:
-- [ ] Database schema deployed (`db-schema.sql` executed in Supabase)
-- [ ] Environment variables configured (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-- [ ] POST `/api/bybit/connect` - connect Bybit testnet successfully
-- [ ] GET `/api/bybit/status` - returns connected + balance
-- [ ] GET `/api/bybit/balance` - shows wallet breakdown
-- [ ] POST `/api/bybit/place-order` - execute test order (tiny qty)
-- [ ] Trade appears in `trades` table after order
-- [ ] POST `/api/automation/enable` - activate strategy automation
-- [ ] Check last_run timestamp updates hourly
-- [ ] Scheduler appears in Vercel logs: `vercel logs --follow`
-- [ ] GET `/api/db/automation-jobs` - returns active automations
-- [ ] UI components render without errors
-- [ ] Bybit connection status badge shows in header
+✅ **Phase 3C Complete:**
+- [x] Frontend static files in `public/`
+- [x] API functions in `api/[...route].js`
+- [x] `vercel.json` configured for routing + builds
+- [x] Supabase PostgreSQL connected + RLS enabled
+- [x] Environment variables set in Vercel dashboard
+- [x] Frontend accessible at https://btc-trading-analyzer.vercel.app
+- [x] API accessible at https://api-jeqjmp909.vercel.app
+- [x] Glassmorphism UI with responsive design
+- [x] GSAP animations working
+- [x] Bybit integration tested with testnet
+- [x] All 8+ endpoints functional
 
-## Resources & Documentation
+**For Future Updates:**
+- Push changes to main branch → Vercel auto-deploys
+- Monitor logs: `vercel logs --follow`
+- Check API health: `curl https://api-jeqjmp909.vercel.app/api/health`
 
-- **ARCHITECTURE.md** - System design, flow diagrams, performance characteristics
-- **QUICK-REFERENCE.md** - Quick lookup for endpoints, environment variables
-- **TESTING-GUIDE.md** - Step-by-step testing with cURL examples for all 11 endpoints
-- **PHASE-3B-SUMMARY.md** - Changelog and completion summary
-- **db-schema.sql** - Database schema with automation_jobs table
-- **lib/api-client.js** - All API endpoint methods in one place
-- **api/automation/scheduler.js** - Hourly automation executor logic
-- **vercel.json** - Cron configuration (0 * * * *)
+## Environment Variables (Set in Vercel Dashboard)
 
-## Critical DO's & DON'Ts
+```
+SUPABASE_URL=https://fjusqtpwssycokwobtzj.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-secret-key-here
+```
 
-✅ **Always:**
-- Use Bearer token for user identification
+**Never commit these to Git** — Vercel loads from dashboard
+
+## Performance Characteristics
+
+- Frontend: CDN cached, instant worldwide access
+- API: Cold start ~1-2s, subsequent calls <200ms
+- Backtesting: <2s for 365 candles
+- Chart rendering: Smooth 60fps with GSAP animations
+- DB queries: Indexed on user_id, symbol, created_at
+
+## Critical Security Points
+
+⚠️ **DO:**
+- Use absolute URLs from `CONFIG.API_BASE_URL`
+- Check Bearer token before sensitive operations
 - Decrypt credentials server-side only
 - Filter queries by user.id from token
-- Check `/api/bybit/status` before placing orders
-- Save trades to DB after every execution
-- Monitor `vercel logs --follow` for scheduler
+- Enable RLS on user-scoped tables
 
-❌ **Never:**
-- Pass credentials in request body (use DB encryption)
-- Expose encrypted keys to frontend
-- Skip RLS policies on sensitive tables
-- Hardcode API keys (use environment variables)
-- Assume scheduler ran without checking logs/DB
-- Place real orders without testnet validation
+⚠️ **DON'T:**
+- Expose API keys in frontend code
+- Hardcode environment variables
+- Use relative API paths
+- Skip auth checks
+- Merge PRs without testing on Vercel first

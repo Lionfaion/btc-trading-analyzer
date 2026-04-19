@@ -17,8 +17,13 @@
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
-  <!-- HEADER -->
-  <header class="header">
+  <!-- AUTH CONTAINER (shown when not logged in) -->
+  <div id="auth-container" style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #1a0033 0%, #0d001a 100%);"></div>
+
+  <!-- MAIN DASHBOARD (hidden until authenticated) -->
+  <div id="main-dashboard" style="display: none;">
+    <!-- HEADER -->
+    <header class="header">
     <div class="header-container">
       <div class="header-logo">
         <div class="logo-icon">⚡</div>
@@ -552,5 +557,51 @@
       AnimationEngine.initialLoad();
     });
   </script>
+
+  <!-- Auth Panel Script -->
+  <script src="/ui/auth-panel.js"></script>
+
+  <!-- Show/hide logic for auth -->
+  <script>
+    // Check if user is logged in
+    function checkAuthStatus() {
+      const token = localStorage.getItem('authToken');
+      const authContainer = document.getElementById('auth-container');
+      const mainDashboard = document.getElementById('main-dashboard');
+
+      if (token) {
+        // User is logged in
+        authContainer.style.display = 'none';
+        mainDashboard.style.display = 'block';
+      } else {
+        // User is not logged in
+        authContainer.style.display = 'flex';
+        mainDashboard.style.display = 'none';
+        authPanel.render();
+      }
+    }
+
+    // Listen for login events
+    window.addEventListener('userLoggedIn', () => {
+      checkAuthStatus();
+    });
+
+    window.addEventListener('userLoggedOut', () => {
+      checkAuthStatus();
+    });
+
+    // Check auth status on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(checkAuthStatus, 100);
+    });
+
+    // Also check immediately in case DOM is already loaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkAuthStatus);
+    } else {
+      checkAuthStatus();
+    }
+  </script>
+</div>
 </body>
 </html>
