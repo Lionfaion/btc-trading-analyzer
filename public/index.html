@@ -438,33 +438,35 @@
         <div class="account-grid">
           <div class="glass-card">
             <div class="card-header">
-              <h3>Credenciales de Bybit</h3>
+              <h3>API Key de Anthropic</h3>
             </div>
-            <form class="cred-form" id="bybitCredsForm">
+            <form class="cred-form" id="anthropicKeyForm">
               <div class="form-group">
                 <label>API Key</label>
-                <input type="password" placeholder="Ingresa tu API Key" class="neon-input">
+                <input type="password" placeholder="sk-ant-..." class="neon-input" id="anthropicApiKey">
               </div>
-              <div class="form-group">
-                <label>API Secret</label>
-                <input type="password" placeholder="Ingresa tu API Secret" class="neon-input">
-              </div>
-              <div class="form-group">
-                <label>
-                  <input type="checkbox" checked> Usar Testnet
-                </label>
-              </div>
-              <button type="submit" class="btn-primary full-width">Guardar Credenciales</button>
+              <small style="color: #aaa; display: block; margin-top: 8px;">
+                Obtén tu API key en https://console.anthropic.com
+              </small>
+              <button type="submit" class="btn-primary full-width" style="margin-top: 15px;">Guardar API Key</button>
             </form>
-            <div class="form-group" style="margin-top: 10px;">
-              <button id="forgetBybitBtn" class="btn-secondary full-width" style="background: #ff6b6b; border-color: #ff6b6b;">
-                Olvidar Credenciales
-              </button>
-            </div>
-            <div id="credentialsStatus" style="margin-top: 15px; padding: 10px; border-radius: 8px; text-align: center; font-size: 14px; display: none;">
-              <span style="color: #00ff00;">✓ Credenciales guardadas</span>
+            <div id="anthropicStatus" style="margin-top: 15px; padding: 10px; border-radius: 8px; text-align: center; font-size: 14px; display: none;">
+              <span style="color: #00ff00;">✓ API Key configurada</span>
               <br>
-              <small id="credentialsDate" style="color: #aaa;"></small>
+              <small id="anthropicDate" style="color: #aaa;"></small>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Credenciales de Bybit</h3>
+            </div>
+            <div id="bybitStatusOnly" style="padding: 15px; text-align: center;">
+              <div id="credentialsStatus" style="padding: 10px; border-radius: 8px; font-size: 14px;">
+                <span style="color: #aaa;">Credenciales guardadas automáticamente</span>
+                <br>
+                <span id="bybitConnectionStatus" style="color: #ff6b6b; font-size: 12px; display: block; margin-top: 10px;">Desconectado</span>
+              </div>
             </div>
           </div>
 
@@ -563,6 +565,9 @@
         backtestPanel.init();
       }
 
+      // Initialize Anthropic API Key handler
+      initializeAnthropicApiKey();
+
       // Animate initial load
       AnimationEngine.initialLoad();
     });
@@ -581,6 +586,79 @@
       document.addEventListener('DOMContentLoaded', checkAuthStatus);
     } else {
       checkAuthStatus();
+    }
+  </script>
+
+  <!-- Anthropic API Key Management -->
+  <script>
+    function initializeAnthropicApiKey() {
+      const form = document.getElementById('anthropicKeyForm');
+      const input = document.getElementById('anthropicApiKey');
+      const statusDiv = document.getElementById('anthropicStatus');
+      const dateDiv = document.getElementById('anthropicDate');
+
+      // Load saved API key on page load
+      const savedKey = localStorage.getItem('anthropic_api_key');
+      if (savedKey) {
+        input.value = savedKey;
+        showAnthropicStatus(true);
+      }
+
+      // Handle form submission
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const apiKey = input.value.trim();
+
+        if (!apiKey) {
+          if (typeof AnimationEngine !== 'undefined') {
+            AnimationEngine.showErrorToast('Ingresa una API Key válida');
+          }
+          return;
+        }
+
+        // Validate API key format (should start with sk-ant-)
+        if (!apiKey.startsWith('sk-ant-')) {
+          if (typeof AnimationEngine !== 'undefined') {
+            AnimationEngine.showErrorToast('API Key debe comenzar con sk-ant-');
+          }
+          return;
+        }
+
+        // Save to localStorage
+        localStorage.setItem('anthropic_api_key', apiKey);
+        localStorage.setItem('anthropic_key_saved_at', new Date().toISOString());
+
+        // Show success message
+        if (typeof AnimationEngine !== 'undefined') {
+          AnimationEngine.showSuccessToast('✓ API Key de Anthropic guardada');
+        }
+
+        // Show status
+        showAnthropicStatus(true);
+
+        console.log('✅ API Key de Anthropic guardada en localStorage');
+      });
+
+      function showAnthropicStatus(show) {
+        if (show) {
+          statusDiv.style.display = 'block';
+          const savedAt = localStorage.getItem('anthropic_key_saved_at');
+          if (savedAt) {
+            const date = new Date(savedAt);
+            const dateStr = date.toLocaleString('es-ES');
+            dateDiv.textContent = `Guardado: ${dateStr}`;
+          }
+        } else {
+          statusDiv.style.display = 'none';
+        }
+      }
+
+      // Export function to make API key accessible globally
+      window.getAnthropicApiKey = function() {
+        return localStorage.getItem('anthropic_api_key');
+      };
+
+      console.log('✅ Anthropic API Key handler inicializado');
     }
   </script>
 </div>
