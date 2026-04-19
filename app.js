@@ -1,47 +1,26 @@
-const express = require('express');
-const path = require('path');
+const http = require('http');
 const fs = require('fs');
-
+const path = require('path');
 const PORT = parseInt(process.env.PORT || 8080);
-const app = express();
 
 const publicPath = path.join(__dirname, 'public');
 const indexPath = path.join(publicPath, 'index.html');
 
-// Middleware
-app.use(express.static(publicPath));
+const server = http.createServer((req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
 
-// Healthcheck
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Root route
-app.get('/', (req, res) => {
   fs.readFile(indexPath, 'utf8', (err, data) => {
     if (err) {
-      console.error('Error reading index.html:', err);
-      res.status(500).send('Error reading index.html');
+      res.writeHead(500);
+      res.end('Error');
       return;
     }
-    res.type('text/html').send(data);
+    res.writeHead(200);
+    res.end(data);
   });
 });
 
-// SPA fallback - catch all other routes
-app.get('*', (req, res) => {
-  fs.readFile(indexPath, 'utf8', (err, data) => {
-    if (err) {
-      console.error('Error reading index.html:', err);
-      res.status(500).send('Error reading index.html');
-      return;
-    }
-    res.type('text/html').send(data);
-  });
-});
-
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.error('Listening on ' + PORT);
 });
 
