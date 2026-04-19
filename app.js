@@ -33,9 +33,52 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // Database endpoints
+    if (req.url === '/api/db/strategies') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ strategies: [] }));
+      return;
+    }
+
+    if (req.url === '/api/db/backtests') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ backtests: [] }));
+      return;
+    }
+
+    if (req.url === '/api/db/trades') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ trades: [] }));
+      return;
+    }
+
+    if (req.url === '/api/db/automation-jobs') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ automations: [] }));
+      return;
+    }
+
     if (req.url === '/api/bybit/connect' && req.method === 'POST') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, connected: true, balance: 0 }));
+      return;
+    }
+
+    // Automation endpoints
+    if (req.url.startsWith('/api/automation/')) {
+      const parts = req.url.split('/');
+      const action = parts[3];
+      if (action === 'execute' || action === 'enable' || action === 'disable') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+        return;
+      }
+    }
+
+    // Strategy create endpoint
+    if (req.url === '/api/db/strategies' && req.method === 'POST') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, strategyId: 'demo-1' }));
       return;
     }
 
