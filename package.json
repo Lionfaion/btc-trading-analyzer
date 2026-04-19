@@ -2,7 +2,7 @@
   "name": "btc-trading-analyzer",
   "version": "1.0.0",
   "description": "Complete 6-phase BTC trading platform with Supabase, backtesting, Bybit integration, and TradingView charts",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
     "start": "echo Starting with PORT=$PORT && node app.js",
     "dev": "node app.js",
