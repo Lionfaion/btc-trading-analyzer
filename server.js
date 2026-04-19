@@ -36,18 +36,26 @@ const server = http.createServer(async (req, res) => {
 
   // API routes - use pre-loaded handler
   if (pathname.startsWith('/api/')) {
+    console.log(`📍 API request: ${req.method} ${pathname}`);
     try {
       // Extract route parts from pathname (e.g., /api/auth/signup -> ['auth', 'signup'])
       const route = pathname.slice(5).split('/').filter(Boolean);
       req.query = { route };
+      console.log(`📍 Calling handler with route:`, route);
 
       // Call the pre-loaded API handler
-      await apiHandler(req, res);
+      const handlerPromise = apiHandler(req, res);
+      console.log(`📍 Handler promise created`);
+      await handlerPromise;
+      console.log(`📍 Handler completed`);
       return;
     } catch (e) {
       console.error('❌ API error:', e.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error', details: e.message }));
+      console.error('Stack:', e.stack);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal server error', details: e.message }));
+      }
       return;
     }
   }
