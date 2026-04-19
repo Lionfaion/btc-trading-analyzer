@@ -1,4 +1,6 @@
-require('http').createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('OK');
-}).listen(process.env.PORT || 8080, '0.0.0.0');
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 8080;
+
+app.get('/', (req, res) => res.send('OK'));
+app.listen(PORT, '0.0.0.0');
