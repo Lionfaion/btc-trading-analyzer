@@ -1,5 +1,5 @@
 const http = require('http');
-const PORT = parseInt(process.env.PORT || 8080);
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 
 const html = `<!DOCTYPE html>
 <html>
