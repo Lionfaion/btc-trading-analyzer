@@ -47,24 +47,34 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        try {
+          const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
 
-        if (error) {
-          return res.status(401).json({ success: false, error: error.message || 'Credenciales inválidas' });
-        }
+          const result = await response.json();
 
-        return res.status(200).json({
-          success: true,
-          user: {
-            id: data.user?.id || '',
-            email: data.user?.email || ''
-          },
-          session: {
-            accessToken: data.session?.access_token || '',
-            refreshToken: data.session?.refresh_token || '',
-            expiresIn: data.session?.expires_in || 3600
+          if (!response.ok || result.error) {
+            return res.status(401).json({ success: false, error: result.error_description || 'Credenciales inválidas' });
           }
-        });
+
+          return res.status(200).json({
+            success: true,
+            user: { id: result.user?.id || '', email: result.user?.email || '' },
+            session: {
+              accessToken: result.access_token || '',
+              refreshToken: result.refresh_token || '',
+              expiresIn: result.expires_in || 3600
+            }
+          });
+        } catch (err) {
+          return res.status(500).json({ success: false, error: 'Error al iniciar sesión' });
+        }
       }
 
       if (action === 'signup' && req.method === 'POST') {
@@ -74,24 +84,34 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
         }
 
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        try {
+          const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/signup`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
 
-        if (error) {
-          return res.status(400).json({ success: false, error: error.message || 'Error al registrarse' });
+          const result = await response.json();
+
+          if (!response.ok || result.error) {
+            return res.status(400).json({ success: false, error: result.error_description || result.message || 'Error al registrarse' });
+          }
+
+          return res.status(201).json({
+            success: true,
+            user: { id: result.user?.id || '', email: result.user?.email || '' },
+            session: result.session ? {
+              accessToken: result.session.access_token || '',
+              refreshToken: result.session.refresh_token || '',
+              expiresIn: result.session.expires_in || 3600
+            } : null
+          });
+        } catch (err) {
+          return res.status(500).json({ success: false, error: 'Error del servidor' });
         }
-
-        return res.status(201).json({
-          success: true,
-          user: {
-            id: data.user?.id || '',
-            email: data.user?.email || ''
-          },
-          session: data.session ? {
-            accessToken: data.session.access_token || '',
-            refreshToken: data.session.refresh_token || '',
-            expiresIn: data.session.expires_in || 3600
-          } : null
-        });
       }
 
       return res.status(404).json({ error: 'Auth endpoint not found' });
