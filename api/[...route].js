@@ -221,28 +221,38 @@ export default async function handler(req, res) {
     if (section === 'db') {
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-      if (action === 'automation-jobs' && req.method === 'GET') {
-        const { data, error } = await supabase
-          .from('automation_jobs')
-          .select('*')
-          .eq('user_id', user.id);
-        return res.json({ automations: data || [], error: error?.message });
-      }
+      try {
+        if (action === 'automation-jobs' && req.method === 'GET') {
+          const { data } = await supabase
+            .from('automation_jobs')
+            .select('*')
+            .eq('user_id', user.id)
+            .catch(() => ({ data: [] }));
+          return res.json({ automations: data || [] });
+        }
 
-      if (action === 'strategies' && req.method === 'GET') {
-        const { data, error } = await supabase
-          .from('strategies')
-          .select('*')
-          .eq('user_id', user.id);
-        return res.json({ strategies: data || [], error: error?.message });
-      }
+        if (action === 'strategies' && req.method === 'GET') {
+          const { data } = await supabase
+            .from('strategies')
+            .select('*')
+            .eq('user_id', user.id)
+            .catch(() => ({ data: [] }));
+          return res.json({ strategies: data || [] });
+        }
 
-      if (action === 'backtests' && req.method === 'GET') {
-        const { data, error } = await supabase
-          .from('backtests')
-          .select('*')
-          .eq('user_id', user.id);
-        return res.json({ backtests: data || [], error: error?.message });
+        if (action === 'backtests' && req.method === 'GET') {
+          const { data } = await supabase
+            .from('backtests')
+            .select('*')
+            .eq('user_id', user.id)
+            .catch(() => ({ data: [] }));
+          return res.json({ backtests: data || [] });
+        }
+      } catch (err) {
+        // Return empty arrays if DB fails
+        if (action === 'strategies') return res.json({ strategies: [] });
+        if (action === 'backtests') return res.json({ backtests: [] });
+        if (action === 'automation-jobs') return res.json({ automations: [] });
       }
     }
 
