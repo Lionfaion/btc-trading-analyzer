@@ -47,28 +47,24 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
         }
 
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-          if (error) {
-            return res.status(401).json({ success: false, error: 'Credenciales inválidas' });
-          }
-
-          return res.status(200).json({
-            success: true,
-            user: {
-              id: data.user.id,
-              email: data.user.email
-            },
-            session: {
-              accessToken: data.session.access_token,
-              refreshToken: data.session.refresh_token,
-              expiresIn: data.session.expires_in
-            }
-          });
-        } catch (err) {
-          return res.status(500).json({ success: false, error: 'Error al iniciar sesión' });
+        if (error) {
+          return res.status(401).json({ success: false, error: error.message || 'Credenciales inválidas' });
         }
+
+        return res.status(200).json({
+          success: true,
+          user: {
+            id: data.user?.id || '',
+            email: data.user?.email || ''
+          },
+          session: {
+            accessToken: data.session?.access_token || '',
+            refreshToken: data.session?.refresh_token || '',
+            expiresIn: data.session?.expires_in || 3600
+          }
+        });
       }
 
       if (action === 'signup' && req.method === 'POST') {
@@ -78,28 +74,24 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
         }
 
-        try {
-          const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
 
-          if (error) {
-            return res.status(400).json({ success: false, error: error.message || 'Error al registrarse' });
-          }
-
-          return res.status(201).json({
-            success: true,
-            user: {
-              id: data.user.id,
-              email: data.user.email
-            },
-            session: data.session ? {
-              accessToken: data.session.access_token,
-              refreshToken: data.session.refresh_token,
-              expiresIn: data.session.expires_in
-            } : null
-          });
-        } catch (err) {
-          return res.status(500).json({ success: false, error: 'Error del servidor' });
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message || 'Error al registrarse' });
         }
+
+        return res.status(201).json({
+          success: true,
+          user: {
+            id: data.user?.id || '',
+            email: data.user?.email || ''
+          },
+          session: data.session ? {
+            accessToken: data.session.access_token || '',
+            refreshToken: data.session.refresh_token || '',
+            expiresIn: data.session.expires_in || 3600
+          } : null
+        });
       }
 
       return res.status(404).json({ error: 'Auth endpoint not found' });
