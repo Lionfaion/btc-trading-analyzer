@@ -7,6 +7,16 @@ const PORT = process.env.PORT || 3000;
 
 console.log('🚀 Starting server on port', PORT);
 
+// Load API handler once at startup
+let apiHandler;
+try {
+  apiHandler = require('./api/handler.js');
+  console.log('✅ API handler loaded');
+} catch (e) {
+  console.error('❌ Failed to load API handler:', e.message);
+  process.exit(1);
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
@@ -24,20 +34,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API routes - use handler.js
+  // API routes - use pre-loaded handler
   if (pathname.startsWith('/api/')) {
     try {
       // Extract route parts from pathname (e.g., /api/auth/signup -> ['auth', 'signup'])
       const route = pathname.slice(5).split('/').filter(Boolean);
       req.query = { route };
 
-      // Load and call the unified API handler
-      const apiHandler = require('./api/handler.js');
+      // Call the pre-loaded API handler
       await apiHandler(req, res);
       return;
     } catch (e) {
       console.error('❌ API error:', e.message);
-      console.error('Stack:', e.stack);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Internal server error', details: e.message }));
       return;
