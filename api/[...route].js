@@ -34,7 +34,7 @@ async function getUser(req) {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
   try {
@@ -153,3 +153,7 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
+
+// Export for both Vercel (ES modules) and Node.js (CommonJS)
+module.exports = { default: handler };
+module.exports.default = handler;

@@ -4,11 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "numReplicas": 1,
-    "startCommand": "node -e \"console.log('Railway Node.js deployment ready')\" && npm start || echo 'Static site ready'"
-  },
-  "env": {
-    "SUPABASE_URL": "https://fjusqtpwssycokwobtzj.supabase.co",
-    "SUPABASE_ANON_KEY": "sb_publishable_S9p5vRZlZ8sDzsMGuXJ60A_pimQBeyD"
+    "startCommand": "node server.js"
   }
 }

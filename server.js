@@ -24,17 +24,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API routes
+  // API routes - use [...route].js handler
   if (pathname.startsWith('/api/')) {
     try {
-      const apiPath = path.join(__dirname, 'api', pathname.slice(5) + '.js');
-      const apiHandler = require(apiPath);
-      await apiHandler(req, res, parsedUrl);
+      const apiHandler = require('./api/[...route].js').default;
+      // Extract route parts from pathname (e.g., /api/auth/signup -> ['auth', 'signup'])
+      const route = pathname.slice(5).split('/').filter(Boolean);
+      req.query = { route };
+      await apiHandler(req, res);
       return;
     } catch (e) {
       console.error('API error:', e.message);
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Endpoint not found: ' + pathname }));
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error', details: e.message }));
       return;
     }
   }
