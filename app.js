@@ -35,7 +35,7 @@ const server = http.createServer((req, res) => {
 
     if (req.url === '/api/bybit/connect' && req.method === 'POST') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, connected: true }));
+      res.end(JSON.stringify({ success: true, connected: true, balance: 0 }));
       return;
     }
 

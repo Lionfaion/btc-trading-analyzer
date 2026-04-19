@@ -56,7 +56,8 @@ class BybitPanel {
           this.saveCredentials();
 
           if (typeof AnimationEngine !== 'undefined') {
-            AnimationEngine.showSuccessToast(`Conectado a Bybit - Balance: $${data.balance.toFixed(2)}`);
+            const balance = data.balance ?? 0;
+            AnimationEngine.showSuccessToast(`Conectado a Bybit - Balance: $${Number(balance).toFixed(2)}`);
           }
           e.target.reset();
           if (typeof header !== 'undefined') {
