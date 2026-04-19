@@ -54,6 +54,7 @@ class BybitPanel {
             connectedAt: new Date().toISOString()
           };
           this.saveCredentials();
+          this.showCredentialsStatus();
 
           if (typeof AnimationEngine !== 'undefined') {
             const balance = data.balance ?? 0;
@@ -63,6 +64,8 @@ class BybitPanel {
           if (typeof header !== 'undefined') {
             header.checkBybitStatus();
           }
+
+          console.log('✅ Credenciales guardadas exitosamente en localStorage');
         } else {
           throw new Error(data.error || 'Error al conectar');
         }
@@ -89,9 +92,26 @@ class BybitPanel {
       const saved = localStorage.getItem('bybit_credentials');
       if (saved) {
         this.credentials = JSON.parse(saved);
+        this.showCredentialsStatus();
       }
     } catch (error) {
       console.error('Error loading credentials:', error);
+    }
+  }
+
+  showCredentialsStatus() {
+    const statusDiv = document.getElementById('credentialsStatus');
+    const dateDiv = document.getElementById('credentialsDate');
+
+    if (this.credentials && this.credentials.connectedAt) {
+      statusDiv.style.display = 'block';
+      const date = new Date(this.credentials.connectedAt);
+      const dateStr = date.toLocaleString('es-ES');
+      dateDiv.textContent = `Guardado: ${dateStr}`;
+
+      console.log('✅ Credenciales detectadas en localStorage');
+    } else {
+      statusDiv.style.display = 'none';
     }
   }
 
@@ -112,8 +132,15 @@ class BybitPanel {
         });
 
         const data = await response.json();
-        if (data.success && typeof header !== 'undefined') {
-          header.checkBybitStatus();
+        if (data.success) {
+          console.log('✅ Credenciales guardadas y auto-conectadas:', {
+            isTestnet: this.credentials.isTestnet,
+            balance: data.balance,
+            connectedAt: this.credentials.connectedAt
+          });
+          if (typeof header !== 'undefined') {
+            header.checkBybitStatus();
+          }
         }
       } catch (error) {
         console.error('Auto-connect failed:', error);
@@ -124,12 +151,16 @@ class BybitPanel {
   forgetCredentials() {
     this.credentials = null;
     localStorage.removeItem('bybit_credentials');
+    this.showCredentialsStatus();
+
     if (typeof AnimationEngine !== 'undefined') {
       AnimationEngine.showSuccessToast('Credenciales olvidadas');
     }
     if (typeof header !== 'undefined') {
       header.checkBybitStatus();
     }
+
+    console.log('✅ Credenciales eliminadas de localStorage');
   }
 }
 
