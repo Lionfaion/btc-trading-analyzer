@@ -4,43 +4,47 @@ const path = require('path');
 
 const PORT = process.env.PORT || 8080;
 
-// HTML fallback mínimo en caso de que no encuentre los archivos
+// HTML fallback mínimo
 const fallbackHTML = `<!DOCTYPE html>
 <html>
-<head>
-  <title>BTC Trading Analyzer</title>
-</head>
-<body>
-  <h1>Servidor corriendo</h1>
-  <p>Si ves errores, intenta recargar la página.</p>
+<head><title>BTC Trading Analyzer</title></head>
+<body style="font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a1a; color: #fff; margin: 0;">
+  <div style="text-align: center;">
+    <h1>✅ Servidor funcionando</h1>
+    <p>La aplicación se está cargando...</p>
+    <p style="color: #888; font-size: 12px;">Si persisten los errores, recarga la página (Ctrl+F5)</p>
+  </div>
 </body>
 </html>`;
 
-// Intentar cargar HTML, pero no fallar si no existe
+let indexHtml = fallbackHTML;
+
+// Cargar HTML en el startup pero no bloquear si falla
 function loadIndexHTML() {
   try {
     const publicPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(publicPath)) {
-      return fs.readFileSync(publicPath, 'utf8');
-    }
+    const content = fs.readFileSync(publicPath, 'utf8');
+    console.log('[STARTUP] ✅ HTML cargado desde public/index.html');
+    return content;
   } catch (e) {
-    console.log('[WARNING] No se pudo cargar public/index.html');
+    console.log('[WARNING] No se pudo cargar public/index.html:', e.message);
   }
 
   try {
     const rootPath = path.join(__dirname, 'index.html');
-    if (fs.existsSync(rootPath)) {
-      return fs.readFileSync(rootPath, 'utf8');
-    }
+    const content = fs.readFileSync(rootPath, 'utf8');
+    console.log('[STARTUP] ✅ HTML cargado desde index.html');
+    return content;
   } catch (e) {
     console.log('[WARNING] No se pudo cargar index.html desde raíz');
   }
 
-  console.log('[WARNING] Usando HTML fallback');
+  console.log('[STARTUP] ⚠️  Usando HTML fallback');
   return fallbackHTML;
 }
 
-let indexHtml = loadIndexHTML();
+// Cargar HTML al iniciar
+indexHtml = loadIndexHTML();
 
 const server = http.createServer((req, res) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
