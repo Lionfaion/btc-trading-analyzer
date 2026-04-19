@@ -1,23 +1,9 @@
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const PORT = parseInt(process.env.PORT || 8080);
 
-const publicPath = path.join(__dirname, 'public');
-const indexPath = path.join(publicPath, 'index.html');
-
 const server = http.createServer((req, res) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-
-  fs.readFile(indexPath, 'utf8', (err, data) => {
-    if (err) {
-      res.writeHead(500);
-      res.end('Error');
-      return;
-    }
-    res.writeHead(200);
-    res.end(data);
-  });
+  res.writeHead(200, {'Content-Type': 'text/html'});
+  res.end('<!DOCTYPE html><html><body><h1>Server is online!</h1></body></html>');
 });
 
 server.listen(PORT, '0.0.0.0', () => {
