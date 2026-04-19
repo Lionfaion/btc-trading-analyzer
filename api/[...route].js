@@ -38,16 +38,16 @@ export default async function handler(req, res) {
   try {
     // Auth endpoints
     if (section === 'auth') {
-      const body = req.method !== 'GET' ? await parseBody(req) : {};
+      try {
+        const body = req.method !== 'GET' ? await parseBody(req) : {};
 
-      if (action === 'login' && req.method === 'POST') {
-        const { email, password } = body;
+        if (action === 'login' && req.method === 'POST') {
+          const { email, password } = body;
 
-        if (!email || !password) {
-          return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
-        }
+          if (!email || !password) {
+            return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
+          }
 
-        try {
           const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
             method: 'POST',
             headers: {
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
 
           const result = await response.json();
 
-          if (!response.ok || result.error) {
+          if (!response.ok) {
             return res.status(401).json({ success: false, error: result.error_description || 'Credenciales inválidas' });
           }
 
@@ -72,19 +72,15 @@ export default async function handler(req, res) {
               expiresIn: result.expires_in || 3600
             }
           });
-        } catch (err) {
-          return res.status(500).json({ success: false, error: 'Error al iniciar sesión' });
-        }
-      }
-
-      if (action === 'signup' && req.method === 'POST') {
-        const { email, password } = body;
-
-        if (!email || !password) {
-          return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
         }
 
-        try {
+        if (action === 'signup' && req.method === 'POST') {
+          const { email, password } = body;
+
+          if (!email || !password) {
+            return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
+          }
+
           const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/signup`, {
             method: 'POST',
             headers: {
@@ -96,7 +92,7 @@ export default async function handler(req, res) {
 
           const result = await response.json();
 
-          if (!response.ok || result.error) {
+          if (!response.ok) {
             return res.status(400).json({ success: false, error: result.error_description || result.message || 'Error al registrarse' });
           }
 
@@ -109,17 +105,34 @@ export default async function handler(req, res) {
               expiresIn: result.session.expires_in || 3600
             } : null
           });
-        } catch (err) {
-          return res.status(500).json({ success: false, error: 'Error del servidor' });
         }
-      }
 
-      return res.status(404).json({ error: 'Auth endpoint not found' });
+        return res.status(404).json({ error: 'Auth endpoint not found' });
+      } catch (err) {
+        console.error('[AUTH ERROR]', err.message);
+        return res.status(500).json({ success: false, error: 'Error del servidor: ' + err.message });
+      }
     }
 
     // Health check
     if (section === 'health') {
-      return res.status(200).json({ status: 'ok' });
+      return res.status(200).json({
+        status: 'ok',
+        env: {
+          supabaseUrl: process.env.SUPABASE_URL ? 'set' : 'missing',
+          supabaseKey: process.env.SUPABASE_ANON_KEY ? 'set' : 'missing'
+        }
+      });
+    }
+
+    // Debug endpoint
+    if (section === 'debug') {
+      return res.status(200).json({
+        env: {
+          SUPABASE_URL: process.env.SUPABASE_URL || 'NOT SET',
+          SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
+        }
+      });
     }
 
     const body = await parseBody(req);
