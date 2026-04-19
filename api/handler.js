@@ -169,7 +169,7 @@ async function handler(req, res) {
 
     // Bybit endpoints
     if (section === 'bybit') {
-      const user = await getUser(req);
+      // const user = await getUser(req);
 
       if (action === 'status') {
         return jsonResponse(res, 200, { connected: false, balance: 0 });
@@ -181,7 +181,7 @@ async function handler(req, res) {
         return jsonResponse(res, 200, { positions: [], count: 0 });
       }
       if (action === 'connect' && req.method === 'POST') {
-        if (!user) return jsonResponse(res, 401, { error: 'No estás autenticado' });
+        // if (!user) return jsonResponse(res, 401, { error: 'No estás autenticado' });
         return jsonResponse(res, 200, { success: true });
       }
     }

@@ -131,7 +131,7 @@ async function handler(req, res) {
     // Bybit endpoints
     if (section === 'bybit') {
       const body = await parseBody(req);
-      const user = await getUser(req);
+      // const user = await getUser(req);
 
       if (action === 'status') {
         return res.json({ connected: false, balance: 0 });
