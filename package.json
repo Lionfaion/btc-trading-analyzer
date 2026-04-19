@@ -14,7 +14,7 @@
     "test:performance": "jest __tests__/performance --testTimeout=30000"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=16.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
