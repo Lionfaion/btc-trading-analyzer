@@ -24,19 +24,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API routes - use [...route].js handler
+  // API routes - use handler.js
   if (pathname.startsWith('/api/')) {
     try {
-      console.log('📍 Loading API handler for:', pathname);
-      const routeModule = require('./api/[...route].js');
-      const apiHandler = routeModule.default || routeModule;
-      console.log('✅ Handler loaded:', typeof apiHandler);
-
       // Extract route parts from pathname (e.g., /api/auth/signup -> ['auth', 'signup'])
       const route = pathname.slice(5).split('/').filter(Boolean);
       req.query = { route };
 
-      console.log('📍 Calling handler with route:', route);
+      // Load and call the unified API handler
+      const apiHandler = require('./api/handler.js');
       await apiHandler(req, res);
       return;
     } catch (e) {
