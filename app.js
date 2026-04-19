@@ -14,6 +14,31 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // Bybit endpoints
+    if (req.url === '/api/bybit/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ connected: false, balance: 0 }));
+      return;
+    }
+
+    if (req.url === '/api/bybit/balance') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ totalBalance: 0, coins: [] }));
+      return;
+    }
+
+    if (req.url === '/api/bybit/positions') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ positions: [], count: 0 }));
+      return;
+    }
+
+    if (req.url === '/api/bybit/connect' && req.method === 'POST') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, connected: true }));
+      return;
+    }
+
     // Serve static files
     const filePath = path.join(publicPath, req.url === '/' ? 'index.html' : req.url);
 

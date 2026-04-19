@@ -38,8 +38,8 @@ class ApiClient {
       fetchOptions.body = JSON.stringify(body);
     }
 
-    // Asegurarse que la URL es absoluta (apunta a Vercel)
-    const baseUrl = 'https://api-jeqjmp909-automates-projects-a5315662.vercel.app';
+    // Use current domain for API calls
+    const baseUrl = window.location.origin;
     const fullUrl = endpoint.startsWith('http') ? endpoint : baseUrl + endpoint;
 
     try {
