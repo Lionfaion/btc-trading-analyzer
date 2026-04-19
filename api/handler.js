@@ -1,6 +1,3 @@
-// Wrapper that imports the dynamic route handler
-// This avoids issues with require() and filenames containing brackets
-
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -37,6 +34,11 @@ async function getUser(req) {
   }
 }
 
+function jsonResponse(res, statusCode, data) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
 async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
@@ -50,7 +52,7 @@ async function handler(req, res) {
       const { email, password } = body;
 
       if (!email || !password) {
-        return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
+        return jsonResponse(res, 400, { success: false, error: 'Email y contraseña requeridos' });
       }
 
       const authUrl = `${process.env.SUPABASE_URL}/auth/v1/signup`;
@@ -66,10 +68,10 @@ async function handler(req, res) {
       const result = await response.json();
 
       if (!response.ok) {
-        return res.status(400).json({ success: false, error: result.error_description || 'Error al registrarse' });
+        return jsonResponse(res, 400, { success: false, error: result.error_description || 'Error al registrarse' });
       }
 
-      return res.status(201).json({
+      return jsonResponse(res, 201, {
         success: true,
         user: { id: result.user?.id || '', email: result.user?.email || '' },
         session: result.session ? {
@@ -86,7 +88,7 @@ async function handler(req, res) {
       const { email, password } = body;
 
       if (!email || !password) {
-        return res.status(400).json({ success: false, error: 'Email y contraseña requeridos' });
+        return jsonResponse(res, 400, { success: false, error: 'Email y contraseña requeridos' });
       }
 
       const authUrl = `${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`;
@@ -102,10 +104,10 @@ async function handler(req, res) {
       const result = await response.json();
 
       if (!response.ok) {
-        return res.status(401).json({ success: false, error: result.error_description || 'Credenciales inválidas' });
+        return jsonResponse(res, 401, { success: false, error: result.error_description || 'Credenciales inválidas' });
       }
 
-      return res.status(200).json({
+      return jsonResponse(res, 200, {
         success: true,
         user: { id: result.user?.id || '', email: result.user?.email || '' },
         session: {
@@ -118,43 +120,42 @@ async function handler(req, res) {
 
     // Health check
     if (section === 'health') {
-      return res.json({ status: 'ok' });
+      return jsonResponse(res, 200, { status: 'ok' });
     }
 
     // DB endpoints - return empty data
     if (section === 'db') {
       const user = await getUser(req);
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!user) return jsonResponse(res, 401, { error: 'Unauthorized' });
 
-      if (action === 'strategies') return res.json({ strategies: [] });
-      if (action === 'backtests') return res.json({ backtests: [] });
-      if (action === 'automation-jobs') return res.json({ automations: [] });
+      if (action === 'strategies') return jsonResponse(res, 200, { strategies: [] });
+      if (action === 'backtests') return jsonResponse(res, 200, { backtests: [] });
+      if (action === 'automation-jobs') return jsonResponse(res, 200, { automations: [] });
     }
 
     // Bybit endpoints
     if (section === 'bybit') {
-      const body = await parseBody(req);
       const user = await getUser(req);
 
       if (action === 'status') {
-        return res.json({ connected: false, balance: 0 });
+        return jsonResponse(res, 200, { connected: false, balance: 0 });
       }
       if (action === 'balance') {
-        return res.json({ totalBalance: 0, coins: [] });
+        return jsonResponse(res, 200, { totalBalance: 0, coins: [] });
       }
       if (action === 'positions') {
-        return res.json({ positions: [], count: 0 });
+        return jsonResponse(res, 200, { positions: [], count: 0 });
       }
       if (action === 'connect' && req.method === 'POST') {
-        if (!user) return res.status(401).json({ error: 'No estás autenticado' });
-        return res.json({ success: true });
+        if (!user) return jsonResponse(res, 401, { error: 'No estás autenticado' });
+        return jsonResponse(res, 200, { success: true });
       }
     }
 
-    res.status(404).json({ error: 'Endpoint not found' });
+    jsonResponse(res, 404, { error: 'Endpoint not found' });
   } catch (error) {
     console.error('❌ Handler error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    jsonResponse(res, 500, { error: error.message || 'Internal server error' });
   }
 }
 
