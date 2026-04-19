@@ -6,18 +6,52 @@ const supabase = createClient(
 );
 
 async function parseBody(req) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (req.method === 'GET') {
       resolve({});
       return;
     }
+
     let body = '';
-    req.on('data', chunk => body += chunk);
+    let resolved = false;
+
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        reject(new Error('Request body timeout'));
+      }
+    }, 5000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      req.removeAllListeners('data');
+      req.removeAllListeners('end');
+      req.removeAllListeners('error');
+    };
+
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
     req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch {
-        resolve({});
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        try {
+          resolve(body ? JSON.parse(body) : {});
+        } catch (e) {
+          console.error('JSON parse error:', e);
+          resolve({});
+        }
+      }
+    });
+
+    req.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        console.error('Request error in parseBody:', err);
+        reject(err);
       }
     });
   });
