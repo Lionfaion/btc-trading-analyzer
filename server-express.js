@@ -4,6 +4,12 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Debug: Print environment variables
+console.log('📍 Environment variables check:');
+console.log('  SUPABASE_URL:', process.env.SUPABASE_URL ? 'SET' : 'MISSING');
+console.log('  SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING');
+console.log('  SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING');
+
 // Load API handler once at startup
 let apiHandler;
 try {
@@ -11,6 +17,7 @@ try {
   console.log('✅ API handler loaded');
 } catch (e) {
   console.error('❌ Failed to load API handler:', e.message);
+  console.error('Stack:', e.stack);
   process.exit(1);
 }
 
