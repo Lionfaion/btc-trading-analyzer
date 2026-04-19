@@ -1,22 +1,19 @@
 const http = require('http');
 
-const PORT = parseInt(process.env.PORT, 10) || 8080;
+const PORT = process.env.PORT || 8080;
 
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ ok: true }));
+  try {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', time: Date.now() }));
+  } catch (e) {
+    try {
+      res.writeHead(500);
+      res.end('error');
+    } catch (e2) {
+      // ignore
+    }
+  }
 });
 
-const listener = server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Listening on ${PORT}`);
-  console.log(`Now accepting connections`);
-});
-
-listener.on('error', (e) => {
-  console.error('Listen error:', e);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (e) => {
-  console.error('Uncaught:', e);
-});
+server.listen(PORT, '0.0.0.0');
