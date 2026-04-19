@@ -27,14 +27,21 @@ const server = http.createServer(async (req, res) => {
   // API routes - use [...route].js handler
   if (pathname.startsWith('/api/')) {
     try {
-      const apiHandler = require('./api/[...route].js').default;
+      console.log('📍 Loading API handler for:', pathname);
+      const routeModule = require('./api/[...route].js');
+      const apiHandler = routeModule.default || routeModule;
+      console.log('✅ Handler loaded:', typeof apiHandler);
+
       // Extract route parts from pathname (e.g., /api/auth/signup -> ['auth', 'signup'])
       const route = pathname.slice(5).split('/').filter(Boolean);
       req.query = { route };
+
+      console.log('📍 Calling handler with route:', route);
       await apiHandler(req, res);
       return;
     } catch (e) {
-      console.error('API error:', e.message);
+      console.error('❌ API error:', e.message);
+      console.error('Stack:', e.stack);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Internal server error', details: e.message }));
       return;
