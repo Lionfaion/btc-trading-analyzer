@@ -1,107 +1,82 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
-console.log('[STARTUP] Iniciando servidor...');
-console.log('[STARTUP] __dirname:', __dirname);
-console.log('[STARTUP] process.env.PORT:', process.env.PORT);
-
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.json': 'application/json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf'
-};
-
-const publicPath = path.join(__dirname, 'public');
+console.log('=== INICIANDO SERVIDOR ===');
 
 const server = http.createServer((req, res) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+
   try {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
-
-    console.log(`[REQUEST] ${req.method} ${pathname}`);
-
-    // API health check - simplest endpoint
-    if (pathname === '/api/health') {
-      console.log('[API] health check');
+    // Health check
+    if (req.url === '/api/health' || req.url.startsWith('/api/health')) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok' }));
+      res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
       return;
     }
 
-    // Serve static files from /public
-    let filePath = path.join(publicPath, pathname === '/' ? 'index.html' : pathname);
+    // Serve static files
+    const publicDir = path.join(__dirname, 'public');
+    let filePath = req.url === '/' ? path.join(publicDir, 'index.html') : path.join(publicDir, req.url);
 
-    // Security: prevent directory traversal
-    if (!filePath.startsWith(publicPath)) {
-      console.log('[SECURITY] Directory traversal attempt:', filePath);
-      res.writeHead(404);
+    // Prevent directory traversal
+    if (!filePath.startsWith(publicDir)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');
       return;
     }
 
     // Try to serve file
     try {
-      const stats = fs.statSync(filePath);
-
-      if (stats.isDirectory()) {
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
         filePath = path.join(filePath, 'index.html');
-        fs.statSync(filePath);
       }
 
-      const ext = path.extname(filePath);
-      const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+      const content = fs.readFileSync(filePath);
+      let contentType = 'application/octet-stream';
 
-      const fileContent = fs.readFileSync(filePath);
-      res.writeHead(200, { 'Content-Type': mimeType });
-      res.end(fileContent);
-      console.log('[FILE] Served:', filePath.substring(publicPath.length));
-    } catch (err) {
-      console.log('[FALLBACK] File not found, serving index.html:', err.code);
-      // Fallback to index.html for SPA routing
-      const indexPath = path.join(publicPath, 'index.html');
-      const indexContent = fs.readFileSync(indexPath);
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(indexContent);
+      if (filePath.endsWith('.html')) contentType = 'text/html; charset=utf-8';
+      else if (filePath.endsWith('.css')) contentType = 'text/css';
+      else if (filePath.endsWith('.js')) contentType = 'application/javascript';
+      else if (filePath.endsWith('.json')) contentType = 'application/json';
+      else if (filePath.endsWith('.svg')) contentType = 'image/svg+xml';
+
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content);
+    } catch (e) {
+      // File not found, serve index.html (SPA routing)
+      try {
+        const indexPath = path.join(publicDir, 'index.html');
+        const content = fs.readFileSync(indexPath);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(content);
+      } catch (e2) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal server error');
+      }
     }
-  } catch (error) {
-    console.error('[ERROR]', error);
-    res.writeHead(500);
-    res.end('Internal server error');
+  } catch (e) {
+    console.error('ERROR:', e.message);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Server error');
   }
 });
 
 const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0';
 
-server.listen(PORT, HOST, () => {
-  console.log(`✓ Server listening on ${HOST}:${PORT}`);
-  console.log(`✓ Public path: ${publicPath}`);
-  console.log('[READY] Waiting for requests...');
+server.on('clientError', (err, socket) => {
+  console.error('CLIENT ERROR:', err.message);
+  if (socket.writable) {
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+  }
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✓ Server running on port ${PORT}`);
 });
 
 server.on('error', (err) => {
-  console.error('[SERVER_ERROR]', err.code, err.message);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT]', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[REJECTION]', reason);
+  console.error('SERVER ERROR:', err);
   process.exit(1);
 });
