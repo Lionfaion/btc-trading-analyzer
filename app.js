@@ -1,16 +1,15 @@
-const http = require('http');
+const express = require('express');
+const path = require('path');
 const PORT = parseInt(process.env.PORT || 8080);
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('OK');
+const app = express();
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.error('Listening on ' + PORT);
-});
-
-server.on('error', (err) => {
-  console.error('Server error:', err.code);
-  process.exit(1);
 });
