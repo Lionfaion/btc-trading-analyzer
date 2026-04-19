@@ -36,6 +36,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Static files from root directory
 app.use(express.static(__dirname));
 
+// Diagnostic endpoint
+app.get('/api/diagnose', (req, res) => {
+  res.json({
+    status: 'ok',
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 20) + '...' : 'MISSING',
+    nodeEnv: process.env.NODE_ENV || 'development'
+  });
+});
+
 // API routes
 app.use('/api', (req, res, next) => {
   console.log(`📍 ${req.method} ${req.path}`);
