@@ -1,39 +1,18 @@
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 
 const PORT = process.env.PORT || 8080;
 
-function loadIndexHTML() {
-  try {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(indexPath)) {
-      return fs.readFileSync(indexPath, 'utf8');
-    }
-  } catch (e) {
-    console.log('[WARNING] No se pudo cargar public/index.html');
-  }
-
-  return '<!DOCTYPE html><html><body><h1>Dashboard</h1></body></html>';
-}
-
-const indexHTML = loadIndexHTML();
-
 const server = http.createServer((req, res) => {
   res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
-  res.end(indexHTML);
+  res.end('<!DOCTYPE html><html><body style="background:#1a1a1a;color:#0f0;font-family:monospace;padding:40px"><h1>✅ Trading Analyzer</h1><p>Servidor activo en puerto ' + PORT + '</p></body></html>');
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[STARTUP] Servidor escuchando en 0.0.0.0:${PORT}`);
-  console.log('[STARTUP] Dashboard cargado y listo');
+  console.log('[STARTUP] Servidor en puerto ' + PORT);
 });
 
 process.on('SIGTERM', () => {
-  console.log('[SHUTDOWN] SIGTERM recibido');
-  server.close(() => {
-    console.log('[SHUTDOWN] Servidor cerrado');
-    process.exit(0);
-  });
+  console.log('[SHUTDOWN] Cerrando');
+  server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10000);
 });
