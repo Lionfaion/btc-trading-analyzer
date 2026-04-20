@@ -133,6 +133,8 @@
               <div style="display:flex;align-items:center;gap:12px;">
                 <h3 id="chart-symbol-label">BTC / USDT</h3>
                 <span id="chart-last-price" style="color:#00d9ff;font-size:18px;font-weight:700;"></span>
+                <span id="chart-change-24h" style="font-size:13px;font-weight:600;"></span>
+                <span id="ws-status" title="WebSocket desconectado" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:2px;" ></span>
               </div>
               <div style="display:flex;gap:6px;">
                 <button class="asset-btn active" data-asset="BTC" style="padding:5px 10px;border-radius:6px;border:1px solid #00d9ff;background:rgba(0,217,255,0.15);color:#00d9ff;cursor:pointer;font-size:12px;">BTC</button>
@@ -629,6 +631,7 @@
   <!-- Configuration -->
   <script src="/lib/config.js"></script>
   <script src="/lib/tradingview-init.js"></script>
+  <script src="/lib/bybit-websocket.js"></script>
 
   <!-- Core Libraries -->
   <script src="/lib/api-client.js"></script>
@@ -678,9 +681,24 @@
         });
       });
 
-      // Initialize chart
+      // Initialize chart + WebSocket
       if (typeof ChartSystem !== 'undefined') {
-        ChartSystem.init('BTC');
+
+        function _connectWS(asset) {
+          if (typeof BybitWS === 'undefined') return;
+          if (asset === 'XAU') {
+            // XAU not on Bybit — disconnect WS, chart uses Alpha Vantage polling
+            BybitWS.disconnect();
+            return;
+          }
+          BybitWS.connect(asset, {
+            interval: '1',
+            onCandle:  c  => ChartSystem.updateCandle(c),
+            onTicker:  tk => ChartSystem.updateTicker(tk)
+          });
+        }
+
+        ChartSystem.init('BTC').then(() => _connectWS('BTC'));
 
         // Asset switcher
         document.querySelectorAll('.asset-btn').forEach(btn => {
@@ -690,10 +708,14 @@
               b.style.color = '#aaa';
               b.style.borderColor = '#333';
             });
-            btn.style.background = btn.dataset.asset === 'XAU' ? 'rgba(255,183,3,0.15)' : 'rgba(0,217,255,0.15)';
-            btn.style.color = btn.dataset.asset === 'XAU' ? '#ffb703' : '#00d9ff';
-            btn.style.borderColor = btn.dataset.asset === 'XAU' ? '#ffb703' : '#00d9ff';
-            ChartSystem.init(btn.dataset.asset);
+            const isXAU = btn.dataset.asset === 'XAU';
+            btn.style.background   = isXAU ? 'rgba(255,183,3,0.15)' : 'rgba(0,217,255,0.15)';
+            btn.style.color        = isXAU ? '#ffb703' : '#00d9ff';
+            btn.style.borderColor  = isXAU ? '#ffb703' : '#00d9ff';
+            // clear change label
+            const ch = document.getElementById('chart-change-24h');
+            if (ch) ch.textContent = '';
+            ChartSystem.init(btn.dataset.asset).then(() => _connectWS(btn.dataset.asset));
           });
         });
       }

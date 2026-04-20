@@ -133,7 +133,34 @@ const ChartSystem = (() => {
     }
   }
 
-  return { init, get currentSymbol() { return _currentSymbol; } };
+  // Called by BybitWS on every kline message
+  function updateCandle(candle) {
+    if (!_candleSeries) return;
+    _candleSeries.update({
+      time:  candle.time,
+      open:  candle.open,
+      high:  candle.high,
+      low:   candle.low,
+      close: candle.close
+    });
+    // Update price display with live close
+    const el = document.getElementById('chart-last-price');
+    if (el) el.textContent = '$' + candle.close.toLocaleString('en-US', { minimumFractionDigits: 2 });
+  }
+
+  // Called by BybitWS on every ticker message
+  function updateTicker(ticker) {
+    const priceEl  = document.getElementById('chart-last-price');
+    const changeEl = document.getElementById('chart-change-24h');
+    if (priceEl) priceEl.textContent = '$' + ticker.price.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    if (changeEl) {
+      const sign = ticker.change24h >= 0 ? '+' : '';
+      changeEl.textContent = `${sign}${ticker.change24h.toFixed(2)}%`;
+      changeEl.style.color = ticker.change24h >= 0 ? '#22c55e' : '#ef4444';
+    }
+  }
+
+  return { init, updateCandle, updateTicker, get currentSymbol() { return _currentSymbol; } };
 })();
 
 window.ChartSystem = ChartSystem;
