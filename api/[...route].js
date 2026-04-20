@@ -505,13 +505,18 @@ async function handler(req, res) {
 
       // Execute strategy signal check + optional order placement
       if (action === 'execute' && req.method === 'POST') {
+        // Support cron calls via X-Cron-Secret (no user Bearer needed)
+        const cronSecret = req.headers['x-cron-secret'];
+        const isCronCall = cronSecret && cronSecret === process.env.CRON_SECRET;
+        if (!isCronCall && !user) return res.status(401).json({ error: 'No estás autenticado' });
+
         const { jobId, demoMode = true } = body;
 
-        // Get active jobs for this user
+        // Cron runs ALL active jobs; user calls run only their own
         let q = supabase.from('automation_jobs')
           .select('*, strategies(name, parameters)')
-          .eq('user_id', user.id)
           .eq('is_active', true);
+        if (!isCronCall) q = q.eq('user_id', user.id);
         if (jobId) q = q.eq('id', jobId);
         const { data: jobs, error: jobsErr } = await q;
         if (jobsErr) return res.status(500).json({ error: jobsErr.message });
@@ -559,7 +564,7 @@ async function handler(req, res) {
             const { data: creds } = await supabase
               .from('bybit_credentials')
               .select('*')
-              .eq('user_id', user.id)
+              .eq('user_id', job.user_id)
               .single();
 
             if (creds) {
@@ -577,7 +582,7 @@ async function handler(req, res) {
 
           // Record trade
           await supabase.from('trades').insert({
-            user_id: user.id,
+            user_id: job.user_id,
             symbol: job.symbol,
             side: signal,
             price: currentPrice,
@@ -587,7 +592,7 @@ async function handler(req, res) {
             notes: JSON.stringify({ automationJobId: job.id, strategyType, demoMode })
           });
 
-          results.push({ jobId: job.id, signal, symbol: job.symbol, price: currentPrice, demoMode, order: orderResult });
+          results.push({ jobId: job.id, signal, symbol: job.symbol, price: currentPrice, demoMode, orderPlaced: !!orderResult && orderResult.retCode === 0, order: orderResult });
         }
 
         return res.json({ success: true, results, executedAt: new Date().toISOString() });

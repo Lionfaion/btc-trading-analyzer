@@ -1,0 +1,75 @@
+name: Strategy Automation Cron
+
+on:
+  schedule:
+    # Every 15 minutes, 24/7
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Symbol to run (BTC, ETH, SOL, XAU — leave blank for all active jobs)'
+        required: false
+        default: ''
+
+jobs:
+  run-automation:
+    name: Execute active automation jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Execute automation jobs
+        env:
+          API_URL: ${{ secrets.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SYMBOL: ${{ github.event.inputs.symbol }}
+        run: |
+          set -e
+
+          TARGET="${API_URL}/api/automation/execute"
+
+          BODY="{}"
+          if [ -n "$SYMBOL" ]; then
+            BODY="{\"symbol\":\"${SYMBOL}\"}"
+          fi
+
+          echo "Calling: $TARGET"
+          echo "Body: $BODY"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST "$TARGET" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${CRON_SECRET}" \
+            -d "$BODY" \
+            --max-time 30)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY_RESP=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response: $BODY_RESP"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: API returned $HTTP_CODE"
+            exit 1
+          fi
+
+          # Show summary of signals generated
+          echo "$BODY_RESP" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    results = d.get('results', [])
+    print(f'Jobs executed: {len(results)}')
+    for r in results:
+        sym  = r.get('symbol', '?')
+        sig  = r.get('signal', '?')
+        price = r.get('price', 0)
+        order = r.get('orderPlaced', False)
+        demo  = r.get('demoMode', False)
+        mode  = '[DEMO]' if demo else '[LIVE]'
+        order_str = 'ORDER PLACED' if order else 'no order'
+        print(f'  {mode} {sym}: signal={sig}, price={price:.2f}, {order_str}')
+except Exception as e:
+    print(f'Could not parse response: {e}')
+" || true
