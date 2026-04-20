@@ -17,8 +17,36 @@
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
-  <!-- AUTH CONTAINER (hidden) -->
-  <div id="auth-container" style="display: none;"></div>
+  <!-- AUTH CONTAINER -->
+  <div id="auth-container" style="display:none; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#0a0a1a 0%,#0d1b2a 100%);">
+    <div style="width:100%;max-width:420px;padding:20px;">
+      <div class="glass-card" style="padding:40px;">
+        <div style="text-align:center;margin-bottom:30px;">
+          <div style="font-size:48px;margin-bottom:10px;">⚡</div>
+          <h2 style="color:#00d9ff;margin:0;">Trading Analyzer Pro</h2>
+          <p style="color:#aaa;margin:8px 0 0;">Plataforma profesional de trading</p>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
+          <button id="tabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;">Iniciar Sesión</button>
+          <button id="tabSignup" onclick="switchAuthTab('signup')" style="flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;">Registrarse</button>
+        </div>
+
+        <form id="authForm" onsubmit="handleAuthSubmit(event)">
+          <div class="form-group" style="margin-bottom:16px;">
+            <label style="color:#aaa;display:block;margin-bottom:6px;font-size:14px;">Email</label>
+            <input type="email" id="authEmail" required placeholder="tu@email.com" class="neon-input" style="width:100%;box-sizing:border-box;">
+          </div>
+          <div class="form-group" style="margin-bottom:24px;">
+            <label style="color:#aaa;display:block;margin-bottom:6px;font-size:14px;">Contraseña</label>
+            <input type="password" id="authPassword" required placeholder="••••••••" class="neon-input" style="width:100%;box-sizing:border-box;">
+          </div>
+          <button type="submit" id="authSubmitBtn" class="btn-primary full-width">Iniciar Sesión</button>
+          <div id="authError" style="color:#ff006e;text-align:center;margin-top:12px;font-size:13px;display:none;"></div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN DASHBOARD (hidden until authenticated) -->
   <div id="main-dashboard" style="display: none;">
@@ -438,6 +466,24 @@
         <div class="account-grid">
           <div class="glass-card">
             <div class="card-header">
+              <h3>Sesión Activa</h3>
+            </div>
+            <div style="padding:10px 0;">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#00d9ff,#ff006e);display:flex;align-items:center;justify-content:center;font-size:18px;">👤</div>
+                <div>
+                  <div style="color:#00d9ff;font-weight:600;" id="userEmailDisplay">Cargando...</div>
+                  <div style="color:#aaa;font-size:12px;">Cuenta activa</div>
+                </div>
+              </div>
+              <button onclick="ApiClient.logout()" class="btn-secondary full-width" style="border-color:#ff006e;color:#ff006e;">
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
               <h3>API Key de Anthropic</h3>
             </div>
             <form class="cred-form" id="anthropicKeyForm">
@@ -574,13 +620,68 @@
     });
   </script>
 
-  <!-- Show/hide logic for dashboard -->
+  <!-- Auth logic -->
   <script>
+    let _authMode = 'login';
+
+    function switchAuthTab(mode) {
+      _authMode = mode;
+      const isLogin = mode === 'login';
+      document.getElementById('tabLogin').style.cssText = isLogin
+        ? 'flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;'
+        : 'flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;';
+      document.getElementById('tabSignup').style.cssText = !isLogin
+        ? 'flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;'
+        : 'flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;';
+      document.getElementById('authSubmitBtn').textContent = isLogin ? 'Iniciar Sesión' : 'Crear Cuenta';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const errDiv = document.getElementById('authError');
+      const btn = document.getElementById('authSubmitBtn');
+
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+      errDiv.style.display = 'none';
+
+      try {
+        if (_authMode === 'login') {
+          await ApiClient.login(email, password);
+        } else {
+          await ApiClient.signup(email, password);
+        }
+        checkAuthStatus();
+      } catch (err) {
+        errDiv.textContent = err.message;
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = _authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta';
+      }
+    }
+
     function checkAuthStatus() {
       const authContainer = document.getElementById('auth-container');
       const mainDashboard = document.getElementById('main-dashboard');
-      authContainer.style.display = 'none';
-      mainDashboard.style.display = 'block';
+      const token = localStorage.getItem('sb-token');
+
+      if (token) {
+        authContainer.style.display = 'none';
+        mainDashboard.style.display = 'block';
+        updateUserDisplay();
+      } else {
+        authContainer.style.display = 'flex';
+        mainDashboard.style.display = 'none';
+      }
+    }
+
+    function updateUserDisplay() {
+      const user = ApiClient.getCurrentUser();
+      const el = document.getElementById('userEmailDisplay');
+      if (el && user) el.textContent = user.email;
     }
 
     if (document.readyState === 'loading') {

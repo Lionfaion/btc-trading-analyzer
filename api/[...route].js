@@ -6,6 +6,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// In-memory rate limiter: 60 req/min per IP
+const _rateStore = new Map();
+function checkRateLimit(req) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = _rateStore.get(ip);
+  if (!record || now > record.reset) {
+    _rateStore.set(ip, { count: 1, reset: now + 60000 });
+    return { allowed: true, remaining: 59, reset: now + 60000 };
+  }
+  if (record.count >= 60) return { allowed: false, remaining: 0, reset: record.reset };
+  record.count++;
+  return { allowed: true, remaining: 60 - record.count, reset: record.reset };
+}
+// Cleanup old entries every 5 minutes
+setInterval(() => { const now = Date.now(); for (const [ip, r] of _rateStore) if (now > r.reset) _rateStore.delete(ip); }, 300000);
+
 // AES-256-GCM encryption using server-side key
 function _getEncKey() {
   const secret = process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'fallback-dev-key-32-chars-min!!';
@@ -86,6 +103,18 @@ async function getUser(req) {
 
 async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const rateCheck = checkRateLimit(req);
+  res.setHeader('X-RateLimit-Limit', '60');
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+  if (!rateCheck.allowed) {
+    return res.status(429).json({ error: 'Demasiadas solicitudes. Intenta en 1 minuto.' });
+  }
 
   try {
     const { route = [] } = req.query;
