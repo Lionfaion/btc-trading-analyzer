@@ -590,6 +590,24 @@
 
           <div class="glass-card">
             <div class="card-header">
+              <h3>Notificaciones Telegram</h3>
+            </div>
+            <div style="padding:10px 0;">
+              <div id="tgStatus" style="margin-bottom:14px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:13px;color:#aaa;">
+                Verificando configuración...
+              </div>
+              <p style="color:#aaa;font-size:12px;margin-bottom:14px;line-height:1.5;">
+                Configura <code style="color:#00d9ff;">TELEGRAM_BOT_TOKEN</code> y <code style="color:#00d9ff;">TELEGRAM_CHAT_ID</code> en Vercel &rarr; Settings &rarr; Environment Variables para recibir alertas de señales y órdenes.
+              </p>
+              <button onclick="_testTelegram()" class="btn-secondary full-width">
+                📨 Enviar mensaje de prueba
+              </button>
+              <div id="tgTestResult" style="margin-top:10px;font-size:13px;display:none;"></div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
               <h3>Preferencias</h3>
             </div>
             <div class="prefs-form">
@@ -876,9 +894,48 @@
       // Initialize Anthropic API Key handler
       initializeAnthropicApiKey();
 
+      // Telegram status check
+      (async function checkTelegramStatus() {
+        const el = document.getElementById('tgStatus');
+        if (!el) return;
+        try {
+          const base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+          const r = await fetch(base + '/api/telegram/status');
+          const d = await r.json();
+          if (d.configured) {
+            el.innerHTML = '✅ <span style="color:#22c55e;">Telegram configurado correctamente</span>';
+          } else {
+            el.innerHTML = '⚠️ <span style="color:#f59e0b;">Variables de entorno no configuradas</span>';
+          }
+        } catch (_) {
+          el.innerHTML = '⚠️ <span style="color:#f59e0b;">No se pudo verificar el estado</span>';
+        }
+      })();
+
       // Animate initial load
       AnimationEngine.initialLoad();
     });
+
+    async function _testTelegram() {
+      const resultEl = document.getElementById('tgTestResult');
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = '<span style="color:#00d9ff;">⏳ Enviando...</span>'; }
+      try {
+        const base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+        const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token') || '';
+        const r = await fetch(base + '/api/telegram/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }
+        });
+        const d = await r.json();
+        if (resultEl) {
+          resultEl.innerHTML = d.success
+            ? '<span style="color:#22c55e;">✅ Mensaje enviado exitosamente</span>'
+            : `<span style="color:#ef4444;">❌ ${d.error || 'Error desconocido'}</span>`;
+        }
+      } catch (e) {
+        if (resultEl) resultEl.innerHTML = `<span style="color:#ef4444;">❌ ${e.message}</span>`;
+      }
+    }
   </script>
 
   <!-- Auth logic -->

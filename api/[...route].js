@@ -4,6 +4,7 @@ import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
 const BacktestEngine = _require('../lib/backtest-engine-server.js');
 const CoinGeckoClient = _require('../public/lib/coingecko-client.js');
+const Telegram = _require('../lib/telegram-notifier.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -558,6 +559,9 @@ async function handler(req, res) {
             continue;
           }
 
+          // Notify Telegram of the signal
+          Telegram.notifySignal({ symbol: job.symbol, signal, price: currentPrice, strategyType, demoMode }).catch(() => {});
+
           // Attempt real order if not demo mode
           let orderResult = null;
           if (!demoMode) {
@@ -577,6 +581,9 @@ async function handler(req, res) {
                 orderType: 'Market',
                 qty: '0.001'
               });
+              if (orderResult?.retCode === 0) {
+                Telegram.notifyOrderPlaced({ symbol: job.symbol, signal, price: currentPrice, orderId: orderResult?.result?.orderId, demoMode }).catch(() => {});
+              }
             }
           }
 
@@ -595,7 +602,32 @@ async function handler(req, res) {
           results.push({ jobId: job.id, signal, symbol: job.symbol, price: currentPrice, demoMode, orderPlaced: !!orderResult && orderResult.retCode === 0, order: orderResult });
         }
 
+        // Send cron summary to Telegram (only when called from cron and there are non-HOLD signals)
+        if (isCronCall && results.some(r => r.signal !== 'HOLD')) {
+          Telegram.notifyCronSummary({ results }).catch(() => {});
+        }
+
         return res.json({ success: true, results, executedAt: new Date().toISOString() });
+      }
+    }
+
+    // Telegram endpoints
+    if (section === 'telegram') {
+      const user = await getUser(req);
+      if (!user) return res.status(401).json({ error: 'No estás autenticado' });
+
+      if (action === 'test' && req.method === 'POST') {
+        const result = await Telegram.sendMessage(
+          `✅ <b>BTC Trading Analyzer</b>\nNotificaciones de Telegram configuradas correctamente.\n⏰ ${new Date().toUTCString()}`,
+          { disablePreview: true }
+        );
+        if (result.ok) return res.json({ success: true, message: 'Mensaje de prueba enviado' });
+        return res.status(500).json({ success: false, error: result.description || result.error || 'Error enviando mensaje' });
+      }
+
+      if (action === 'status' && req.method === 'GET') {
+        const configured = !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+        return res.json({ success: true, configured });
       }
     }
 

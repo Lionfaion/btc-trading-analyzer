@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const BacktestEngine = require('./lib/backtest-engine-server.js');
 const CoinGeckoClient = require('./public/lib/coingecko-client.js');
+const Telegram = require('./lib/telegram-notifier.js');
 
 const PORT = process.env.PORT || 8080;
 const publicPath = path.join(__dirname, 'public');
@@ -15,6 +16,28 @@ const server = http.createServer((req, res) => {
       const content = fs.readFileSync(indexPath);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(content);
+      return;
+    }
+
+    // Telegram endpoints (local dev)
+    if (req.url === '/api/telegram/test' && req.method === 'POST') {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        const result = await Telegram.sendMessage(
+          `✅ <b>BTC Trading Analyzer</b>\nNotificaciones de Telegram configuradas correctamente (local dev).\n⏰ ${new Date().toUTCString()}`,
+          { disablePreview: true }
+        );
+        res.writeHead(result.ok ? 200 : 500);
+        res.end(JSON.stringify(result.ok ? { success: true, message: 'Mensaje enviado' } : { success: false, error: result.description || result.error }));
+      } catch (e) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+      return;
+    }
+    if (req.url === '/api/telegram/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, configured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) }));
       return;
     }
 
