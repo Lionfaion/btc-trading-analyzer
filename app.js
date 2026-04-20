@@ -132,8 +132,23 @@ const server = http.createServer((req, res) => {
       const symbol = (urlObj.searchParams.get('symbol') || 'BTC').toUpperCase();
       const limit = Math.min(parseInt(urlObj.searchParams.get('limit') || '365'), 500);
       try {
-        const gecko = new CoinGeckoClient();
-        const rawCandles = await gecko.getHistoricalCandles(symbol, limit);
+        let rawCandles;
+        if (symbol === 'XAU') {
+          const avKey = process.env.ALPHA_VANTAGE_KEY;
+          if (!avKey) throw new Error('ALPHA_VANTAGE_KEY no configurada en .env');
+          const avRes = await fetch(`https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${avKey}`);
+          const avJson = await avRes.json();
+          const ts = avJson['Time Series FX (Daily)'];
+          if (!ts) throw new Error(avJson['Note'] || avJson['Error Message'] || 'Sin datos XAU');
+          rawCandles = Object.entries(ts).slice(0, limit).reverse().map(([d, v]) => ({
+            open_time: new Date(d).toISOString(),
+            open: parseFloat(v['1. open']), high: parseFloat(v['2. high']),
+            low: parseFloat(v['3. low']),  close: parseFloat(v['4. close']), volume: 0
+          }));
+        } else {
+          const gecko = new CoinGeckoClient();
+          rawCandles = await gecko.getHistoricalCandles(symbol, limit);
+        }
         const candles = rawCandles.map(c => {
           const ts = c.open_time || c.timestamp;
           const t = ts ? Math.floor(new Date(ts).getTime() / 1000) : null;

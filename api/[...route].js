@@ -76,6 +76,38 @@ async function bybitRequest(apiKey, apiSecret, isTestnet, method, endpoint, para
   return response.json();
 }
 
+// Fetch XAU/USD daily candles from Alpha Vantage
+async function _fetchXAUCandles(limit = 365) {
+  const apiKey = process.env.ALPHA_VANTAGE_KEY;
+  if (!apiKey) throw new Error('ALPHA_VANTAGE_KEY no configurada. Agrégala en Vercel → Settings → Environment Variables.');
+
+  const url = `https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${apiKey}`;
+  const res = await fetch(url);
+  const json = await res.json();
+
+  if (json['Error Message']) throw new Error('Alpha Vantage: API key inválida o símbolo no encontrado');
+  if (json['Note']) throw new Error('Alpha Vantage: límite de llamadas alcanzado (25/día en plan gratuito)');
+
+  const timeSeries = json['Time Series FX (Daily)'];
+  if (!timeSeries) throw new Error('Alpha Vantage: sin datos de XAU');
+
+  const candles = Object.entries(timeSeries)
+    .slice(0, limit)
+    .reverse()
+    .map(([date, v]) => ({
+      symbol: 'XAUUSDT',
+      timeframe: '1d',
+      open_time: new Date(date).toISOString(),
+      open:   parseFloat(v['1. open']),
+      high:   parseFloat(v['2. high']),
+      low:    parseFloat(v['3. low']),
+      close:  parseFloat(v['4. close']),
+      volume: 0
+    }));
+
+  return candles;
+}
+
 async function parseBody(req) {
   return new Promise((resolve) => {
     if (req.method === 'GET') {
@@ -211,10 +243,14 @@ async function handler(req, res) {
 
       let rawCandles = (dbCandles || []).reverse();
 
-      // 2. Fallback: CoinGecko
+      // 2. Fallback: CoinGecko (crypto) or Alpha Vantage (XAU)
       if (rawCandles.length < 30) {
-        const gecko = new CoinGeckoClient();
-        rawCandles = await gecko.getHistoricalCandles(rawSymbol, limit);
+        if (rawSymbol === 'XAU') {
+          rawCandles = await _fetchXAUCandles(limit);
+        } else {
+          const gecko = new CoinGeckoClient();
+          rawCandles = await gecko.getHistoricalCandles(rawSymbol, limit);
+        }
         if (rawCandles.length > 0) {
           supabase.from('candles_ohlcv').upsert(
             rawCandles.map(c => ({ ...c, symbol: dbSymbol })),
