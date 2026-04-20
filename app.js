@@ -1,6 +1,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const BacktestEngine = require('./lib/backtest-engine-server.js');
+const CoinGeckoClient = require('./public/lib/coingecko-client.js');
+const Telegram = require('./lib/telegram-notifier.js');
 
 const PORT = process.env.PORT || 8080;
 const publicPath = path.join(__dirname, 'public');
@@ -13,6 +16,28 @@ const server = http.createServer((req, res) => {
       const content = fs.readFileSync(indexPath);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(content);
+      return;
+    }
+
+    // Telegram endpoints (local dev)
+    if (req.url === '/api/telegram/test' && req.method === 'POST') {
+      res.setHeader('Content-Type', 'application/json');
+      try {
+        const result = await Telegram.sendMessage(
+          `✅ <b>BTC Trading Analyzer</b>\nNotificaciones de Telegram configuradas correctamente (local dev).\n⏰ ${new Date().toUTCString()}`,
+          { disablePreview: true }
+        );
+        res.writeHead(result.ok ? 200 : 500);
+        res.end(JSON.stringify(result.ok ? { success: true, message: 'Mensaje enviado' } : { success: false, error: result.description || result.error }));
+      } catch (e) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+      return;
+    }
+    if (req.url === '/api/telegram/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, configured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) }));
       return;
     }
 
@@ -63,7 +88,39 @@ const server = http.createServer((req, res) => {
 
     if (req.url === '/api/db/automation-jobs') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ automations: [] }));
+      res.end(JSON.stringify({ success: true, automations: [] }));
+      return;
+    }
+
+    // Automation endpoints (local dev stubs)
+    if (req.url.startsWith('/api/automation/') && req.method === 'POST') {
+      const action = req.url.split('/')[3];
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      let rawBody = '';
+      req.on('data', c => rawBody += c);
+      req.on('end', async () => {
+        const body = rawBody ? JSON.parse(rawBody) : {};
+        if (action === 'enable') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `Automatización activada para ${body.symbol}` }));
+        } else if (action === 'disable') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Desactivada' }));
+        } else if (action === 'execute') {
+          try {
+            const gecko = new CoinGeckoClient();
+            const symbol = body.symbol || 'BTC';
+            const candles = await gecko.getHistoricalCandles(symbol, 60);
+            const signal = BacktestEngine.detectCurrentSignal(candles, body.strategyType || 'MULTI_INDICATOR');
+            const price = candles[candles.length - 1]?.close || 0;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, results: [{ jobId: 'demo', signal, symbol, price, demoMode: true }], executedAt: new Date().toISOString() }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: e.message }));
+          }
+        }
+      });
       return;
     }
 
@@ -89,6 +146,90 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, strategyId: 'demo-1' }));
       return;
+    }
+
+    // Chart data endpoint (local dev)
+    if (req.url.startsWith('/api/chart/data')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      const urlObj = new URL(req.url, 'http://localhost');
+      const symbol = (urlObj.searchParams.get('symbol') || 'BTC').toUpperCase();
+      const limit = Math.min(parseInt(urlObj.searchParams.get('limit') || '365'), 500);
+      try {
+        let rawCandles;
+        if (symbol === 'XAU') {
+          const avKey = process.env.ALPHA_VANTAGE_KEY;
+          if (!avKey) throw new Error('ALPHA_VANTAGE_KEY no configurada en .env');
+          const avRes = await fetch(`https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${avKey}`);
+          const avJson = await avRes.json();
+          const ts = avJson['Time Series FX (Daily)'];
+          if (!ts) throw new Error(avJson['Note'] || avJson['Error Message'] || 'Sin datos XAU');
+          rawCandles = Object.entries(ts).slice(0, limit).reverse().map(([d, v]) => ({
+            open_time: new Date(d).toISOString(),
+            open: parseFloat(v['1. open']), high: parseFloat(v['2. high']),
+            low: parseFloat(v['3. low']),  close: parseFloat(v['4. close']), volume: 0
+          }));
+        } else {
+          const gecko = new CoinGeckoClient();
+          rawCandles = await gecko.getHistoricalCandles(symbol, limit);
+        }
+        const candles = rawCandles.map(c => {
+          const ts = c.open_time || c.timestamp;
+          const t = ts ? Math.floor(new Date(ts).getTime() / 1000) : null;
+          return { time: t, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) };
+        }).filter(c => c.time && !isNaN(c.close));
+        const eng = new BacktestEngine({ indicators: ['RSI', 'MACD', 'BB'] });
+        eng.loadCandles(rawCandles);
+        const rsiValues = [], macdValues = [], bbValues = [];
+        for (let i = 0; i < eng.candles.length; i++) {
+          const t = candles[i]?.time;
+          if (!t) continue;
+          const rsi = eng._rsi(i, 14);
+          if (rsi != null) rsiValues.push({ time: t, value: parseFloat(rsi.toFixed(2)) });
+          const macd = eng._macd(i);
+          if (macd != null) macdValues.push({ time: t, macd: parseFloat(macd.macd.toFixed(4)), signal: parseFloat(macd.signal.toFixed(4)), histogram: parseFloat(macd.histogram.toFixed(4)) });
+          const bb = eng._bb(i, 20);
+          if (bb != null) bbValues.push({ time: t, upper: parseFloat(bb.upper.toFixed(2)), middle: parseFloat(bb.middle.toFixed(2)), lower: parseFloat(bb.lower.toFixed(2)) });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, symbol, candleCount: candles.length, candles, indicators: { rsi: { values: rsiValues }, macd: { values: macdValues }, bollingerBands: { values: bbValues } } }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+      return;
+    }
+
+    // Backtest execution
+    if (req.url === '/api/backtest/run' && req.method === 'POST') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      let rawBody = '';
+      req.on('data', chunk => rawBody += chunk);
+      req.on('end', async () => {
+        try {
+          const body = rawBody ? JSON.parse(rawBody) : {};
+          const { symbol = 'BTC', strategyType = 'MULTI_INDICATOR', initialBalance = 10000, riskPercentage = 2, days = 365 } = body;
+          const indicatorMap = { RSI_CROSSOVER: ['RSI'], MACD_CROSSOVER: ['MACD'], SMA_CROSSOVER: ['SMA'], MULTI_INDICATOR: ['RSI', 'MACD', 'BB'] };
+          const gecko = new CoinGeckoClient();
+          const candles = await gecko.getHistoricalCandles(symbol, days);
+          const engine = new BacktestEngine({ initialBalance, riskPercentage, indicators: indicatorMap[strategyType] || ['RSI', 'MACD', 'BB'] });
+          engine.loadCandles(candles);
+          const result = await engine.run();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, ...result, symbol, strategyType }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    // Backtest CRUD (in-memory demo)
+    if (req.url.startsWith('/api/db/backtests')) {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.method === 'GET') { res.writeHead(200); res.end(JSON.stringify({ success: true, backtests: [] })); return; }
+      if (req.method === 'POST') { res.writeHead(201); res.end(JSON.stringify({ success: true })); return; }
+      if (req.method === 'DELETE') { res.writeHead(200); res.end(JSON.stringify({ success: true })); return; }
     }
 
     // Serve static files

@@ -1,217 +1,166 @@
-// TradingView Lightweight Charts Integration
-// CDN: https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.production.js
+// tradingview-init.js — Complete chart system with 3 synchronized panes
 
-async function initializeChart(containerId, symbol = 'BTCUSDT') {
-  if (typeof LightweightCharts === 'undefined') {
-    console.error('❌ TradingView Lightweight Charts library not loaded');
-    return null;
+const ChartSystem = (() => {
+  let _main = null, _rsi = null, _macd = null;
+  let _candleSeries = null, _bbUpper = null, _bbMid = null, _bbLower = null;
+  let _rsiSeries = null, _rsiOB = null, _rsiOS = null;
+  let _macdLine = null, _signalLine = null, _macdHist = null;
+  let _currentSymbol = 'BTC';
+
+  const CHART_OPTS = {
+    layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' } },
+    grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+    crosshair: { mode: 1 },
+    timeScale: { timeVisible: true, secondsVisible: false, borderColor: 'rgba(255,255,255,0.1)' },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+    handleScroll: true,
+    handleScale: true
+  };
+
+  function _destroy() {
+    if (_main) { _main.remove(); _main = null; }
+    if (_rsi)  { _rsi.remove();  _rsi  = null; }
+    if (_macd) { _macd.remove(); _macd = null; }
   }
 
-  try {
-    console.log(`📈 Initializing TradingView chart for ${symbol}...`);
-
-    // Fetch chart data (candles + indicators)
-    const response = await fetch(`/api/chart/data?symbol=${symbol}&limit=500`);
-    const data = await response.json();
-
-    if (!data.success) {
-      console.error('❌ Failed to fetch chart data:', data.error);
-      return null;
-    }
-
-    const container = document.getElementById(containerId);
-    if (!container) {
-      console.error(`❌ Container ${containerId} not found`);
-      return null;
-    }
-
-    // Create chart
-    const chart = LightweightCharts.createChart(container, {
-      layout: {
-        textColor: '#d1d5db',
-        background: { type: 'solid', color: '#1f2937' }
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false
-      },
-      grid: {
-        vertLines: { color: '#374151' },
-        horzLines: { color: '#374151' }
-      },
-      width: container.offsetWidth,
-      height: 500
+  function _sync(charts) {
+    // Sync timeScale across all charts
+    charts.forEach((src, i) => {
+      src.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (!range) return;
+        charts.forEach((dst, j) => {
+          if (i !== j) dst.timeScale().setVisibleLogicalRange(range);
+        });
+      });
     });
-
-    // Add candlestick series
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444'
-    });
-
-    candleSeries.setData(data.candles);
-
-    // Add RSI indicator (separate pane)
-    const rsiSeries = chart.addLineSeries({
-      color: '#3b82f6',
-      lineWidth: 2,
-      title: 'RSI (14)'
-    });
-    rsiSeries.setData(data.indicators.rsi.values);
-
-    // Add overbought/oversold lines for RSI
-    const rsiPane = chart.addLineSeries({
-      color: '#6b7280',
-      lineWidth: 1,
-      lineStyle: 2
-    });
-    const rsiOverbought = data.candles.map(c => ({
-      time: c.time,
-      value: 70
-    }));
-    const rsiOversold = data.candles.map(c => ({
-      time: c.time,
-      value: 30
-    }));
-    rsiPane.setData(rsiOverbought);
-
-    // Add MACD indicator
-    const macdSeries = chart.addLineSeries({
-      color: '#f59e0b',
-      lineWidth: 2,
-      title: 'MACD'
-    });
-    const signalSeries = chart.addLineSeries({
-      color: '#8b5cf6',
-      lineWidth: 2,
-      title: 'Signal'
-    });
-    const macdHistogram = chart.addHistogramSeries({
-      color: '#06b6d4',
-      title: 'Histogram'
-    });
-
-    // Extract MACD data
-    const macdOnly = data.indicators.macd.values.map(v => ({
-      time: v.time,
-      value: v.macd
-    }));
-    const signalOnly = data.indicators.macd.values.map(v => ({
-      time: v.time,
-      value: v.signal
-    }));
-    const histogramOnly = data.indicators.macd.values.map(v => ({
-      time: v.time,
-      value: v.histogram,
-      color: v.histogram > 0 ? '#22c55e' : '#ef4444'
-    }));
-
-    macdSeries.setData(macdOnly);
-    signalSeries.setData(signalOnly);
-    macdHistogram.setData(histogramOnly);
-
-    // Add Bollinger Bands
-    const bbUpper = chart.addLineSeries({
-      color: '#a78bfa',
-      lineWidth: 1,
-      lineStyle: 2
-    });
-    const bbMiddle = chart.addLineSeries({
-      color: '#60a5fa',
-      lineWidth: 2
-    });
-    const bbLower = chart.addLineSeries({
-      color: '#a78bfa',
-      lineWidth: 1,
-      lineStyle: 2
-    });
-
-    const bbData = data.indicators.bollingerBands.values;
-    bbUpper.setData(bbData.map(v => ({ time: v.time, value: v.upper })));
-    bbMiddle.setData(bbData.map(v => ({ time: v.time, value: v.middle })));
-    bbLower.setData(bbData.map(v => ({ time: v.time, value: v.lower })));
-
-    // Fit content to chart
-    chart.timeScale().fitContent();
-
-    // Handle window resize
-    function handleResize() {
-      const newWidth = container.offsetWidth;
-      if (newWidth > 0) {
-        chart.applyOptions({ width: newWidth });
-      }
-    }
-    window.addEventListener('resize', handleResize);
-
-    console.log(`✅ Chart initialized with ${data.candles.length} candles`);
-    console.log(`📊 Indicators loaded: RSI, MACD, Bollinger Bands`);
-
-    return {
-      chart,
-      candleSeries,
-      rsiSeries,
-      macdSeries,
-      signalSeries,
-      data,
-      destroy: () => {
-        window.removeEventListener('resize', handleResize);
-        chart.remove();
-      }
-    };
-  } catch (error) {
-    console.error('❌ Chart initialization error:', error.message);
-    return null;
-  }
-}
-
-async function updateChart(chartState, symbol) {
-  if (!chartState) {
-    console.error('❌ Invalid chart state');
-    return false;
   }
 
-  try {
-    console.log(`🔄 Updating chart for ${symbol}...`);
+  async function init(symbol = 'BTC') {
+    _currentSymbol = symbol;
 
-    const response = await fetch(`/api/chart/data?symbol=${symbol}&limit=500`);
-    const data = await response.json();
-
-    if (!data.success) {
-      console.error('❌ Failed to fetch updated chart data:', data.error);
+    const mainEl = document.getElementById('chart-main');
+    const rsiEl  = document.getElementById('chart-rsi');
+    const macdEl = document.getElementById('chart-macd');
+    if (!mainEl || !rsiEl || !macdEl) {
+      console.error('Chart containers not found');
       return false;
     }
 
-    chartState.candleSeries.setData(data.candles);
-    chartState.rsiSeries.setData(data.indicators.rsi.values);
+    // Show loading
+    mainEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#00d9ff;font-size:14px;">⏳ Cargando datos...</div>';
 
-    // Update MACD data
-    const macdOnly = data.indicators.macd.values.map(v => ({
-      time: v.time,
-      value: v.macd
-    }));
-    const signalOnly = data.indicators.macd.values.map(v => ({
-      time: v.time,
-      value: v.signal
-    }));
+    try {
+      const base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+      const res = await fetch(`${base}/api/chart/data?symbol=${symbol}&limit=365`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Error en API');
 
-    chartState.macdSeries.setData(macdOnly);
-    chartState.signalSeries.setData(signalOnly);
+      mainEl.innerHTML = '';
+      rsiEl.innerHTML  = '';
+      macdEl.innerHTML = '';
 
-    chartState.chart.timeScale().fitContent();
+      _destroy();
 
-    console.log(`✅ Chart updated with latest data`);
-    return true;
-  } catch (error) {
-    console.error('❌ Chart update error:', error.message);
-    return false;
+      const LC = window.LightweightCharts;
+      if (!LC) throw new Error('LightweightCharts no cargado');
+
+      // ── Main chart ──
+      _main = LC.createChart(mainEl, { ...CHART_OPTS, height: mainEl.offsetHeight || 380 });
+      _candleSeries = _main.addCandlestickSeries({
+        upColor: '#22c55e', downColor: '#ef4444',
+        borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+        wickUpColor: '#22c55e', wickDownColor: '#ef4444'
+      });
+      _candleSeries.setData(data.candles);
+
+      // Bollinger Bands (same pane as candles)
+      _bbUpper = _main.addLineSeries({ color: 'rgba(139,92,246,0.6)', lineWidth: 1, lineStyle: 2, title: 'BB Upper', priceScaleId: 'right' });
+      _bbMid   = _main.addLineSeries({ color: 'rgba(96,165,250,0.5)', lineWidth: 1, title: 'BB Mid', priceScaleId: 'right' });
+      _bbLower = _main.addLineSeries({ color: 'rgba(139,92,246,0.6)', lineWidth: 1, lineStyle: 2, title: 'BB Lower', priceScaleId: 'right' });
+      const bb = data.indicators.bollingerBands.values;
+      _bbUpper.setData(bb.map(v => ({ time: v.time, value: v.upper })));
+      _bbMid.setData(bb.map(v => ({ time: v.time, value: v.middle })));
+      _bbLower.setData(bb.map(v => ({ time: v.time, value: v.lower })));
+
+      // ── RSI chart ──
+      _rsi = LC.createChart(rsiEl, {
+        ...CHART_OPTS,
+        height: rsiEl.offsetHeight || 110,
+        rightPriceScale: { ...CHART_OPTS.rightPriceScale, autoScale: false, minimum: 0, maximum: 100 }
+      });
+      _rsiSeries = _rsi.addLineSeries({ color: '#3b82f6', lineWidth: 2, title: 'RSI' });
+      _rsiSeries.setData(data.indicators.rsi.values);
+
+      // Overbought / oversold reference lines
+      const rsiTimes = data.indicators.rsi.values.map(v => v.time);
+      _rsiOB = _rsi.addLineSeries({ color: 'rgba(239,68,68,0.4)', lineWidth: 1, lineStyle: 3 });
+      _rsiOS = _rsi.addLineSeries({ color: 'rgba(34,197,94,0.4)', lineWidth: 1, lineStyle: 3 });
+      _rsiOB.setData(rsiTimes.map(t => ({ time: t, value: 70 })));
+      _rsiOS.setData(rsiTimes.map(t => ({ time: t, value: 30 })));
+      _rsi.priceScale('right').applyOptions({ autoScale: false, minimum: 0, maximum: 100 });
+
+      // ── MACD chart ──
+      _macd = LC.createChart(macdEl, { ...CHART_OPTS, height: macdEl.offsetHeight || 110 });
+      _macdLine   = _macd.addLineSeries({ color: '#f59e0b', lineWidth: 2, title: 'MACD' });
+      _signalLine = _macd.addLineSeries({ color: '#8b5cf6', lineWidth: 2, title: 'Signal' });
+      _macdHist   = _macd.addHistogramSeries({ title: 'Hist' });
+
+      const md = data.indicators.macd.values;
+      _macdLine.setData(md.map(v => ({ time: v.time, value: v.macd })));
+      _signalLine.setData(md.map(v => ({ time: v.time, value: v.signal })));
+      _macdHist.setData(md.map(v => ({ time: v.time, value: v.histogram, color: v.histogram >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)' })));
+
+      // ── Sync timescales ──
+      _sync([_main, _rsi, _macd]);
+      [_main, _rsi, _macd].forEach(c => c.timeScale().fitContent());
+
+      // ── Resize handler ──
+      const ro = new ResizeObserver(() => {
+        if (_main && mainEl.offsetWidth > 0) _main.applyOptions({ width: mainEl.offsetWidth });
+        if (_rsi  && rsiEl.offsetWidth > 0)  _rsi.applyOptions({ width: rsiEl.offsetWidth });
+        if (_macd && macdEl.offsetWidth > 0) _macd.applyOptions({ width: macdEl.offsetWidth });
+      });
+      ro.observe(mainEl);
+
+      document.getElementById('chart-symbol-label').textContent = `${symbol} / USDT`;
+      document.getElementById('chart-last-price').textContent = '$' + data.candles[data.candles.length - 1]?.close?.toLocaleString('en-US', { minimumFractionDigits: 2 });
+      return true;
+    } catch (err) {
+      mainEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">❌ ${err.message}</div>`;
+      console.error('Chart error:', err);
+      return false;
+    }
   }
-}
 
-// Export for use in HTML
-window.TradingViewInit = {
-  initializeChart,
-  updateChart
-};
+  // Called by BybitWS on every kline message
+  function updateCandle(candle) {
+    if (!_candleSeries) return;
+    _candleSeries.update({
+      time:  candle.time,
+      open:  candle.open,
+      high:  candle.high,
+      low:   candle.low,
+      close: candle.close
+    });
+    // Update price display with live close
+    const el = document.getElementById('chart-last-price');
+    if (el) el.textContent = '$' + candle.close.toLocaleString('en-US', { minimumFractionDigits: 2 });
+  }
+
+  // Called by BybitWS on every ticker message
+  function updateTicker(ticker) {
+    const priceEl  = document.getElementById('chart-last-price');
+    const changeEl = document.getElementById('chart-change-24h');
+    if (priceEl) priceEl.textContent = '$' + ticker.price.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    if (changeEl) {
+      const sign = ticker.change24h >= 0 ? '+' : '';
+      changeEl.textContent = `${sign}${ticker.change24h.toFixed(2)}%`;
+      changeEl.style.color = ticker.change24h >= 0 ? '#22c55e' : '#ef4444';
+    }
+  }
+
+  return { init, updateCandle, updateTicker, get currentSymbol() { return _currentSymbol; } };
+})();
+
+window.ChartSystem = ChartSystem;

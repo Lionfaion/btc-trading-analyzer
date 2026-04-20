@@ -5,42 +5,74 @@ class ApiClient {
     return localStorage.getItem('sb-token');
   }
 
-  static getHeaders(includeAuth = true) {
-    const headers = {
-      'Content-Type': 'application/json'
-    };
+  static isAuthenticated() {
+    return !!this.getToken();
+  }
 
+  static getHeaders(includeAuth = true) {
+    const headers = { 'Content-Type': 'application/json' };
     if (includeAuth) {
       const token = this.getToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      if (token) headers['Authorization'] = `Bearer ${token}`;
     }
-
     return headers;
   }
 
+  static getBaseUrl() {
+    if (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) return CONFIG.API_BASE_URL;
+    return 'https://api-jeqjmp909-automates-projects-a5315662.vercel.app';
+  }
+
+  static async login(email, password) {
+    const res = await fetch(this.getBaseUrl() + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
+    localStorage.setItem('sb-token', data.session.accessToken);
+    localStorage.setItem('sb-user', JSON.stringify(data.user));
+    return data;
+  }
+
+  static async signup(email, password) {
+    const res = await fetch(this.getBaseUrl() + '/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al registrarse');
+    if (data.session?.accessToken) {
+      localStorage.setItem('sb-token', data.session.accessToken);
+      localStorage.setItem('sb-user', JSON.stringify(data.user));
+    }
+    return data;
+  }
+
+  static logout() {
+    localStorage.removeItem('sb-token');
+    localStorage.removeItem('sb-user');
+    window.location.reload();
+  }
+
+  static getCurrentUser() {
+    try {
+      return JSON.parse(localStorage.getItem('sb-user') || 'null');
+    } catch { return null; }
+  }
+
   static async request(endpoint, options = {}) {
-    const {
-      method = 'GET',
-      body = null,
-      requireAuth = true
-    } = options;
-
+    const { method = 'GET', body = null, requireAuth = true } = options;
     const headers = this.getHeaders(requireAuth);
-
-    const fetchOptions = {
-      method,
-      headers
-    };
+    const fetchOptions = { method, headers };
 
     if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
       fetchOptions.body = JSON.stringify(body);
     }
 
-    // Use current domain for API calls
-    const baseUrl = window.location.origin;
-    const fullUrl = endpoint.startsWith('http') ? endpoint : baseUrl + endpoint;
+    const fullUrl = endpoint.startsWith('http') ? endpoint : this.getBaseUrl() + endpoint;
 
     try {
       const response = await fetch(fullUrl, fetchOptions);

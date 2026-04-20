@@ -17,8 +17,36 @@
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
-  <!-- AUTH CONTAINER (hidden) -->
-  <div id="auth-container" style="display: none;"></div>
+  <!-- AUTH CONTAINER -->
+  <div id="auth-container" style="display:none; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#0a0a1a 0%,#0d1b2a 100%);">
+    <div style="width:100%;max-width:420px;padding:20px;">
+      <div class="glass-card" style="padding:40px;">
+        <div style="text-align:center;margin-bottom:30px;">
+          <div style="font-size:48px;margin-bottom:10px;">⚡</div>
+          <h2 style="color:#00d9ff;margin:0;">Trading Analyzer Pro</h2>
+          <p style="color:#aaa;margin:8px 0 0;">Plataforma profesional de trading</p>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
+          <button id="tabLogin" onclick="switchAuthTab('login')" style="flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;">Iniciar Sesión</button>
+          <button id="tabSignup" onclick="switchAuthTab('signup')" style="flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;">Registrarse</button>
+        </div>
+
+        <form id="authForm" onsubmit="handleAuthSubmit(event)">
+          <div class="form-group" style="margin-bottom:16px;">
+            <label style="color:#aaa;display:block;margin-bottom:6px;font-size:14px;">Email</label>
+            <input type="email" id="authEmail" required placeholder="tu@email.com" class="neon-input" style="width:100%;box-sizing:border-box;">
+          </div>
+          <div class="form-group" style="margin-bottom:24px;">
+            <label style="color:#aaa;display:block;margin-bottom:6px;font-size:14px;">Contraseña</label>
+            <input type="password" id="authPassword" required placeholder="••••••••" class="neon-input" style="width:100%;box-sizing:border-box;">
+          </div>
+          <button type="submit" id="authSubmitBtn" class="btn-primary full-width">Iniciar Sesión</button>
+          <div id="authError" style="color:#ff006e;text-align:center;margin-top:12px;font-size:13px;display:none;"></div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN DASHBOARD (hidden until authenticated) -->
   <div id="main-dashboard" style="display: none;">
@@ -100,16 +128,29 @@
 
         <div class="dashboard-grid">
           <!-- Left: Charts -->
-          <div class="chart-container glass-card">
-            <div class="card-header">
-              <h3>Precio BTC / USDT</h3>
-              <div class="timeframe-selector">
-                <button class="tf-btn active">1h</button>
-                <button class="tf-btn">4h</button>
-                <button class="tf-btn">1d</button>
+          <div class="chart-container glass-card" style="overflow:hidden;">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <h3 id="chart-symbol-label">BTC / USDT</h3>
+                <span id="chart-last-price" style="color:#00d9ff;font-size:18px;font-weight:700;"></span>
+                <span id="chart-change-24h" style="font-size:13px;font-weight:600;"></span>
+                <span id="ws-status" title="WebSocket desconectado" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-left:2px;" ></span>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="asset-btn active" data-asset="BTC" style="padding:5px 10px;border-radius:6px;border:1px solid #00d9ff;background:rgba(0,217,255,0.15);color:#00d9ff;cursor:pointer;font-size:12px;">BTC</button>
+                <button class="asset-btn" data-asset="ETH" style="padding:5px 10px;border-radius:6px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;font-size:12px;">ETH</button>
+                <button class="asset-btn" data-asset="SOL" style="padding:5px 10px;border-radius:6px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;font-size:12px;">SOL</button>
+                <button class="asset-btn" data-asset="XAU" style="padding:5px 10px;border-radius:6px;border:1px solid #ffb703;background:rgba(255,183,3,0.1);color:#ffb703;cursor:pointer;font-size:12px;">XAU</button>
               </div>
             </div>
-            <div id="chart" class="trading-chart"></div>
+            <!-- Main candle chart -->
+            <div id="chart-main" style="width:100%;height:340px;"></div>
+            <!-- RSI -->
+            <div style="padding:4px 12px;font-size:10px;color:#3b82f6;border-top:1px solid rgba(255,255,255,0.05);">RSI (14)</div>
+            <div id="chart-rsi" style="width:100%;height:100px;"></div>
+            <!-- MACD -->
+            <div style="padding:4px 12px;font-size:10px;color:#f59e0b;border-top:1px solid rgba(255,255,255,0.05);">MACD (12,26,9)</div>
+            <div id="chart-macd" style="width:100%;height:100px;"></div>
           </div>
 
           <!-- Right: Metrics Grid -->
@@ -234,6 +275,56 @@
             </div>
           </div>
 
+          <!-- Automation Panel -->
+          <div class="glass-card full-width">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+              <h3>🤖 Automatización de Estrategias</h3>
+              <button class="btn-secondary" id="showAutoFormBtn" style="padding:6px 14px;font-size:13px;">+ Nueva</button>
+            </div>
+
+            <!-- Enable form (hidden by default) -->
+            <div id="autoEnableForm" style="display:none;border-top:1px solid rgba(255,255,255,0.08);padding-top:15px;margin-top:10px;">
+              <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+                <div class="form-group">
+                  <label>Símbolo</label>
+                  <select class="neon-input" id="autoSymbol">
+                    <option value="BTCUSDT">BTC/USDT</option>
+                    <option value="ETHUSDT">ETH/USDT</option>
+                    <option value="SOLUSDT">SOL/USDT</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Estrategia</label>
+                  <select class="neon-input" id="autoStrategy">
+                    <option value="MULTI_INDICATOR">Multi Indicador</option>
+                    <option value="RSI_CROSSOVER">RSI Crossover</option>
+                    <option value="MACD_CROSSOVER">MACD Crossover</option>
+                    <option value="SMA_CROSSOVER">SMA Crossover</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Modo</label>
+                  <select class="neon-input" id="autoDemoMode">
+                    <option value="true">Demo (sin órdenes reales)</option>
+                    <option value="false">Real (requiere Bybit)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:10px;">
+                <button class="btn-primary" id="autoEnableBtn" style="flex:1;">Activar Automatización</button>
+                <button class="btn-secondary" onclick="document.getElementById('autoEnableForm').style.display='none'" style="padding:8px 16px;">Cancelar</button>
+              </div>
+            </div>
+
+            <!-- Active jobs list -->
+            <div id="activeAutomations" style="margin-top:12px;">
+              <p style="color:#888;text-align:center;font-size:13px;">Cargando automatizaciones...</p>
+            </div>
+
+            <!-- Signal check result -->
+            <div id="autoSignalResult" style="margin-top:10px;display:none;"></div>
+          </div>
+
           <!-- Order Form -->
           <div class="glass-card full-width">
             <div class="card-header">
@@ -310,13 +401,22 @@
               </div>
               <div class="form-group">
                 <label>Capital Inicial</label>
-                <input type="number" value="10000" step="100" class="neon-input">
+                <input type="number" id="backtestBalance" value="10000" step="100" class="neon-input">
               </div>
               <div class="form-group">
                 <label>Riesgo por Trade %</label>
-                <input type="number" value="2" step="0.5" class="neon-input">
+                <input type="number" id="backtestRisk" value="2" step="0.5" class="neon-input">
               </div>
-              <button type="submit" class="btn-primary full-width">Ejecutar Backtest</button>
+              <div class="form-group">
+                <label>Días históricos</label>
+                <select class="neon-input" id="backtestDays">
+                  <option value="90">90 días</option>
+                  <option value="180">180 días</option>
+                  <option value="365" selected>1 año</option>
+                  <option value="730">2 años</option>
+                </select>
+              </div>
+              <button type="submit" id="backtestSubmitBtn" class="btn-primary full-width">▶ Ejecutar Backtest</button>
             </form>
           </div>
 
@@ -438,6 +538,24 @@
         <div class="account-grid">
           <div class="glass-card">
             <div class="card-header">
+              <h3>Sesión Activa</h3>
+            </div>
+            <div style="padding:10px 0;">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#00d9ff,#ff006e);display:flex;align-items:center;justify-content:center;font-size:18px;">👤</div>
+                <div>
+                  <div style="color:#00d9ff;font-weight:600;" id="userEmailDisplay">Cargando...</div>
+                  <div style="color:#aaa;font-size:12px;">Cuenta activa</div>
+                </div>
+              </div>
+              <button onclick="ApiClient.logout()" class="btn-secondary full-width" style="border-color:#ff006e;color:#ff006e;">
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
               <h3>API Key de Anthropic</h3>
             </div>
             <form class="cred-form" id="anthropicKeyForm">
@@ -467,6 +585,24 @@
                 <br>
                 <span id="bybitConnectionStatus" style="color: #ff6b6b; font-size: 12px; display: block; margin-top: 10px;">Desconectado</span>
               </div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Notificaciones Telegram</h3>
+            </div>
+            <div style="padding:10px 0;">
+              <div id="tgStatus" style="margin-bottom:14px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:13px;color:#aaa;">
+                Verificando configuración...
+              </div>
+              <p style="color:#aaa;font-size:12px;margin-bottom:14px;line-height:1.5;">
+                Configura <code style="color:#00d9ff;">TELEGRAM_BOT_TOKEN</code> y <code style="color:#00d9ff;">TELEGRAM_CHAT_ID</code> en Vercel &rarr; Settings &rarr; Environment Variables para recibir alertas de señales y órdenes.
+              </p>
+              <button onclick="_testTelegram()" class="btn-secondary full-width">
+                📨 Enviar mensaje de prueba
+              </button>
+              <div id="tgTestResult" style="margin-top:10px;font-size:13px;display:none;"></div>
             </div>
           </div>
 
@@ -512,6 +648,8 @@
 
   <!-- Configuration -->
   <script src="/lib/config.js"></script>
+  <script src="/lib/tradingview-init.js"></script>
+  <script src="/lib/bybit-websocket.js"></script>
 
   <!-- Core Libraries -->
   <script src="/lib/api-client.js"></script>
@@ -561,26 +699,307 @@
         });
       });
 
+      // Initialize chart + WebSocket
+      if (typeof ChartSystem !== 'undefined') {
+
+        function _connectWS(asset) {
+          if (typeof BybitWS === 'undefined') return;
+          if (asset === 'XAU') {
+            // XAU not on Bybit — disconnect WS, chart uses Alpha Vantage polling
+            BybitWS.disconnect();
+            return;
+          }
+          BybitWS.connect(asset, {
+            interval: '1',
+            onCandle:  c  => ChartSystem.updateCandle(c),
+            onTicker:  tk => ChartSystem.updateTicker(tk)
+          });
+        }
+
+        ChartSystem.init('BTC').then(() => _connectWS('BTC'));
+
+        // Asset switcher
+        document.querySelectorAll('.asset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.asset-btn').forEach(b => {
+              b.style.background = 'transparent';
+              b.style.color = '#aaa';
+              b.style.borderColor = '#333';
+            });
+            const isXAU = btn.dataset.asset === 'XAU';
+            btn.style.background   = isXAU ? 'rgba(255,183,3,0.15)' : 'rgba(0,217,255,0.15)';
+            btn.style.color        = isXAU ? '#ffb703' : '#00d9ff';
+            btn.style.borderColor  = isXAU ? '#ffb703' : '#00d9ff';
+            // clear change label
+            const ch = document.getElementById('chart-change-24h');
+            if (ch) ch.textContent = '';
+            ChartSystem.init(btn.dataset.asset).then(() => _connectWS(btn.dataset.asset));
+          });
+        });
+      }
+
       // Initialize UI Components
       if (typeof backtestPanel !== 'undefined') {
         backtestPanel.init();
       }
 
+      // Backtest form submission
+      const backtestForm = document.getElementById('backtestForm');
+      if (backtestForm) {
+        backtestForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const symbol = document.getElementById('backtestSymbol').value;
+          const strategy = document.getElementById('backtestStrategy').value;
+          const balance = parseFloat(document.getElementById('backtestBalance').value) || 10000;
+          const risk = parseFloat(document.getElementById('backtestRisk').value) || 2;
+          const days = parseInt(document.getElementById('backtestDays').value) || 365;
+          const btn = document.getElementById('backtestSubmitBtn');
+          const resultsDiv = document.getElementById('backtestResults');
+
+          btn.disabled = true;
+          btn.textContent = '⏳ Ejecutando...';
+          resultsDiv.innerHTML = '<p style="color:#00d9ff;text-align:center;">Obteniendo datos históricos y ejecutando backtest...</p>';
+
+          try {
+            const result = await backtestPanel.runBacktest(symbol, strategy, { initialBalance: balance, riskPercentage: risk, days });
+            const formatted = backtestPanel.formatResults(result);
+            resultsDiv.innerHTML = formatted.tableHTML + formatted.tradesHTML;
+
+            // Auto-save if authenticated
+            try {
+              await backtestPanel.saveBacktestResult({
+                symbol, strategyType: strategy,
+                summary: result.summary, stats: result.stats,
+                trades: result.trades, equityCurve: result.equityCurve
+              });
+            } catch (_) {}
+          } catch (err) {
+            resultsDiv.innerHTML = `<p style="color:#ff6666;text-align:center;">❌ ${err.message}</p>`;
+          } finally {
+            btn.disabled = false;
+            btn.textContent = '▶ Ejecutar Backtest';
+          }
+        });
+      }
+
+      // Automation UI logic
+      (function initAutomation() {
+        const _apiBase = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+        const _headers = () => {
+          const t = localStorage.getItem('authToken') || localStorage.getItem('sb-token') || '';
+          return { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) };
+        };
+
+        async function loadJobs() {
+          const el = document.getElementById('activeAutomations');
+          if (!el) return;
+          try {
+            const r = await fetch(_apiBase + '/api/db/automation-jobs', { headers: _headers() });
+            const d = await r.json();
+            const jobs = d.automations || d.jobs || [];
+            if (jobs.length === 0) {
+              el.innerHTML = '<p style="color:#888;text-align:center;font-size:13px;">Sin automatizaciones activas. Crea una con el botón +</p>';
+            } else {
+              el.innerHTML = jobs.map(j => {
+                const lastRun = j.last_run ? new Date(j.last_run).toLocaleString('es-ES') : 'Nunca';
+                const strat = j.strategies?.parameters?.strategy_type || j.strategies?.name || '—';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid rgba(0,217,255,0.15);border-radius:8px;margin-bottom:8px;">
+                  <div>
+                    <span style="color:#00d9ff;font-weight:600;">${j.symbol}</span>
+                    <span style="color:#aaa;font-size:12px;margin-left:10px;">${strat}</span>
+                    <br><span style="color:#666;font-size:11px;">Última señal: ${lastRun}</span>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button onclick="runSignalCheck('${j.id}')" style="background:rgba(0,217,255,0.1);border:1px solid #00d9ff;color:#00d9ff;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:12px;">▶ Check</button>
+                    <button onclick="disableJob('${j.id}')" style="background:rgba(255,0,110,0.1);border:1px solid #ff006e;color:#ff006e;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:12px;">✕</button>
+                  </div>
+                </div>`;
+              }).join('');
+            }
+          } catch (e) {
+            el.innerHTML = '<p style="color:#888;text-align:center;font-size:13px;">Inicia sesión para ver automatizaciones</p>';
+          }
+        }
+
+        window.runSignalCheck = async function(jobId) {
+          const res = document.getElementById('autoSignalResult');
+          res.style.display = 'block';
+          res.innerHTML = '<p style="color:#00d9ff;">⏳ Analizando señal...</p>';
+          try {
+            const r = await fetch(_apiBase + '/api/automation/execute', {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ jobId, demoMode: true })
+            });
+            const d = await r.json();
+            const result = d.results?.[0];
+            if (!result) throw new Error('Sin resultado');
+            const color = result.signal === 'BUY' ? '#4caf50' : result.signal === 'SELL' ? '#ff6666' : '#aaa';
+            res.innerHTML = `<div style="padding:10px;border:1px solid ${color};border-radius:8px;background:${color}22;">
+              <strong style="color:${color};">${result.signal}</strong>
+              <span style="color:#aaa;margin-left:10px;">${result.symbol} @ $${result.price?.toLocaleString()}</span>
+              ${result.signal !== 'HOLD' ? `<span style="color:#aaa;font-size:12px;margin-left:10px;">(Modo demo — sin orden real)</span>` : ''}
+            </div>`;
+            await loadJobs();
+          } catch (e) {
+            res.innerHTML = `<p style="color:#ff6666;">Error: ${e.message}</p>`;
+          }
+        };
+
+        window.disableJob = async function(jobId) {
+          if (!confirm('¿Desactivar esta automatización?')) return;
+          await fetch(_apiBase + '/api/automation/disable', {
+            method: 'POST', headers: _headers(),
+            body: JSON.stringify({ jobId })
+          });
+          await loadJobs();
+        };
+
+        const showBtn = document.getElementById('showAutoFormBtn');
+        if (showBtn) showBtn.addEventListener('click', () => {
+          document.getElementById('autoEnableForm').style.display = 'block';
+        });
+
+        const enableBtn = document.getElementById('autoEnableBtn');
+        if (enableBtn) enableBtn.addEventListener('click', async () => {
+          const symbol = document.getElementById('autoSymbol').value;
+          const strategyType = document.getElementById('autoStrategy').value;
+          const demoMode = document.getElementById('autoDemoMode').value === 'true';
+          enableBtn.disabled = true; enableBtn.textContent = 'Activando...';
+          try {
+            const r = await fetch(_apiBase + '/api/automation/enable', {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ symbol, strategyType, demoMode })
+            });
+            const d = await r.json();
+            if (d.success) {
+              document.getElementById('autoEnableForm').style.display = 'none';
+              await loadJobs();
+            } else {
+              alert(d.error || 'Error activando automatización');
+            }
+          } catch (e) { alert(e.message); }
+          finally { enableBtn.disabled = false; enableBtn.textContent = 'Activar Automatización'; }
+        });
+
+        // Load jobs when live-trading section is shown
+        document.querySelectorAll('.nav-item').forEach(item => {
+          item.addEventListener('click', () => {
+            if (item.dataset.section === 'live-trading') loadJobs();
+          });
+        });
+
+        loadJobs();
+      })();
+
       // Initialize Anthropic API Key handler
       initializeAnthropicApiKey();
+
+      // Telegram status check
+      (async function checkTelegramStatus() {
+        const el = document.getElementById('tgStatus');
+        if (!el) return;
+        try {
+          const base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+          const r = await fetch(base + '/api/telegram/status');
+          const d = await r.json();
+          if (d.configured) {
+            el.innerHTML = '✅ <span style="color:#22c55e;">Telegram configurado correctamente</span>';
+          } else {
+            el.innerHTML = '⚠️ <span style="color:#f59e0b;">Variables de entorno no configuradas</span>';
+          }
+        } catch (_) {
+          el.innerHTML = '⚠️ <span style="color:#f59e0b;">No se pudo verificar el estado</span>';
+        }
+      })();
 
       // Animate initial load
       AnimationEngine.initialLoad();
     });
+
+    async function _testTelegram() {
+      const resultEl = document.getElementById('tgTestResult');
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = '<span style="color:#00d9ff;">⏳ Enviando...</span>'; }
+      try {
+        const base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+        const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token') || '';
+        const r = await fetch(base + '/api/telegram/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }
+        });
+        const d = await r.json();
+        if (resultEl) {
+          resultEl.innerHTML = d.success
+            ? '<span style="color:#22c55e;">✅ Mensaje enviado exitosamente</span>'
+            : `<span style="color:#ef4444;">❌ ${d.error || 'Error desconocido'}</span>`;
+        }
+      } catch (e) {
+        if (resultEl) resultEl.innerHTML = `<span style="color:#ef4444;">❌ ${e.message}</span>`;
+      }
+    }
   </script>
 
-  <!-- Show/hide logic for dashboard -->
+  <!-- Auth logic -->
   <script>
+    let _authMode = 'login';
+
+    function switchAuthTab(mode) {
+      _authMode = mode;
+      const isLogin = mode === 'login';
+      document.getElementById('tabLogin').style.cssText = isLogin
+        ? 'flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;'
+        : 'flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;';
+      document.getElementById('tabSignup').style.cssText = !isLogin
+        ? 'flex:1;padding:10px;border-radius:8px;border:none;background:#00d9ff;color:#000;font-weight:700;cursor:pointer;'
+        : 'flex:1;padding:10px;border-radius:8px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;';
+      document.getElementById('authSubmitBtn').textContent = isLogin ? 'Iniciar Sesión' : 'Crear Cuenta';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const errDiv = document.getElementById('authError');
+      const btn = document.getElementById('authSubmitBtn');
+
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+      errDiv.style.display = 'none';
+
+      try {
+        if (_authMode === 'login') {
+          await ApiClient.login(email, password);
+        } else {
+          await ApiClient.signup(email, password);
+        }
+        checkAuthStatus();
+      } catch (err) {
+        errDiv.textContent = err.message;
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = _authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta';
+      }
+    }
+
     function checkAuthStatus() {
       const authContainer = document.getElementById('auth-container');
       const mainDashboard = document.getElementById('main-dashboard');
-      authContainer.style.display = 'none';
-      mainDashboard.style.display = 'block';
+      const token = localStorage.getItem('sb-token');
+
+      if (token) {
+        authContainer.style.display = 'none';
+        mainDashboard.style.display = 'block';
+        updateUserDisplay();
+      } else {
+        authContainer.style.display = 'flex';
+        mainDashboard.style.display = 'none';
+      }
+    }
+
+    function updateUserDisplay() {
+      const user = ApiClient.getCurrentUser();
+      const el = document.getElementById('userEmailDisplay');
+      if (el && user) el.textContent = user.email;
     }
 
     if (document.readyState === 'loading') {
