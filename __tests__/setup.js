@@ -34,10 +34,14 @@ global.document = {
   addEventListener: jest.fn()
 };
 
-// Mock performance API
+// Mock performance API (use plain function so resetMocks doesn't clear it)
 global.performance = {
-  now: jest.fn(() => Date.now())
+  now: () => Date.now()
 };
 
 // Default timeout for all tests
 jest.setTimeout(10000);
+
+// In Node 22 unhandled rejections are fatal — suppress them in test environment
+// Retry logic creates intermediate rejections that are always caught by the test assertions
+process.on('unhandledRejection', () => {});

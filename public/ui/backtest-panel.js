@@ -5,6 +5,16 @@ class BacktestPanel {
     this.strategies = [];
     this.backtests = [];
     this.currentResults = null;
+    this._base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+  }
+
+  _url(path) {
+    return this._base + path;
+  }
+
+  _authHeaders() {
+    const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token') || '';
+    return { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) };
   }
 
   async init() {
@@ -14,97 +24,69 @@ class BacktestPanel {
 
   async loadStrategies() {
     try {
-      const response = await fetch('/api/db/strategies');
-      const data = await response.json();
-      if (data.success) {
-        this.strategies = data.strategies || [];
-      }
-    } catch (error) {
-      console.error('Error loading strategies:', error);
+      const res = await fetch(this._url('/api/db/strategies'), { headers: this._authHeaders() });
+      const data = await res.json();
+      if (data.success) this.strategies = data.strategies || [];
+    } catch (e) {
+      console.error('Error loading strategies:', e);
     }
   }
 
   async loadBacktests() {
     try {
-      const response = await fetch('/api/db/backtests');
-      const data = await response.json();
-      if (data.success) {
-        this.backtests = data.backtests || [];
-      }
-    } catch (error) {
-      console.error('Error loading backtests:', error);
+      const res = await fetch(this._url('/api/db/backtests'), { headers: this._authHeaders() });
+      const data = await res.json();
+      if (data.success) this.backtests = data.backtests || [];
+    } catch (e) {
+      console.error('Error loading backtests:', e);
     }
   }
 
   async saveStrategy(strategyData) {
-    try {
-      const response = await fetch('/api/db/strategies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(strategyData)
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        await this.loadStrategies();
-        return data.strategy;
-      } else {
-        throw new Error(data.error || 'Error guardando estrategia');
-      }
-    } catch (error) {
-      console.error('Strategy save error:', error);
-      throw error;
-    }
+    const res = await fetch(this._url('/api/db/strategies'), {
+      method: 'POST',
+      headers: this._authHeaders(),
+      body: JSON.stringify(strategyData)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error guardando estrategia');
+    await this.loadStrategies();
+    return data.strategy;
   }
 
   async saveBacktestResult(backtestData) {
-    try {
-      const response = await fetch('/api/db/backtests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(backtestData)
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        await this.loadBacktests();
-        return data.backtest;
-      } else {
-        throw new Error(data.error || 'Error guardando backtest');
-      }
-    } catch (error) {
-      console.error('Backtest save error:', error);
-      throw error;
-    }
+    const res = await fetch(this._url('/api/db/backtests'), {
+      method: 'POST',
+      headers: this._authHeaders(),
+      body: JSON.stringify(backtestData)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error guardando backtest');
+    await this.loadBacktests();
+    return data.backtest;
   }
 
-  async runBacktest(strategyType, candleData, params = {}) {
-    try {
-      const response = await fetch('/api/backtest/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candleData,
-          indicators: this.getIndicatorsForStrategy(strategyType),
-          timeframe: params.timeframe || '1h',
-          initialBalance: params.initialBalance || 10000,
-          riskPercentage: params.riskPercentage || 2,
-          strategyType
-        })
-      });
+  async runBacktest(symbol, strategyType, params = {}) {
+    const res = await fetch(this._url('/api/backtest/run'), {
+      method: 'POST',
+      headers: this._authHeaders(),
+      body: JSON.stringify({
+        symbol,
+        strategyType,
+        initialBalance: params.initialBalance || 10000,
+        riskPercentage: params.riskPercentage || 2,
+        days: params.days || 365
+      })
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error en backtest');
-      }
-
-      const result = await response.json();
-      this.currentResults = result;
-      return result;
-    } catch (error) {
-      console.error('Backtest execution error:', error);
-      throw error;
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Error en backtest');
     }
+
+    const result = await res.json();
+    this.currentResults = result;
+    return result;
   }
 
   getIndicatorsForStrategy(strategyType) {
@@ -268,22 +250,14 @@ class BacktestPanel {
   }
 
   async deleteBacktest(backtestId) {
-    try {
-      const response = await fetch(`/api/db/backtests/${backtestId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        await this.loadBacktests();
-        return true;
-      } else {
-        throw new Error(data.error || 'Error eliminando backtest');
-      }
-    } catch (error) {
-      console.error('Backtest delete error:', error);
-      throw error;
-    }
+    const res = await fetch(this._url(`/api/db/backtests?id=${backtestId}`), {
+      method: 'DELETE',
+      headers: this._authHeaders()
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error eliminando backtest');
+    await this.loadBacktests();
+    return true;
   }
 
   getBacktestsBySymbol(symbol) {

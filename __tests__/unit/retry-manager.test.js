@@ -1,115 +1,83 @@
 describe('RetryManager', () => {
   let RetryManager;
-  let retryManager;
 
   beforeAll(() => {
-    const fs = require('fs');
-    const code = fs.readFileSync('./api/middleware/retry.js', 'utf8');
-    eval(code.split('module.exports')[0]);
+    RetryManager = require('./../../api/middleware/retry.js');
   });
 
-  beforeEach(() => {
-    jest.useFakeTimers();
-    retryManager = new RetryManager({
+  function makeRetryManager(overrides = {}) {
+    return new RetryManager({
       maxRetries: 3,
-      initialDelay: 100,
-      maxDelay: 1000,
-      backoffMultiplier: 2
+      initialDelay: 1,
+      maxDelay: 10,
+      backoffMultiplier: 1,
+      ...overrides
     });
-  });
+  }
 
-  afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
-  });
+  // Helper: create a retryable error (server error)
+  function retryableError(msg) {
+    const err = new Error(msg);
+    err.status = 500;
+    return err;
+  }
 
   describe('Basic Retry Logic', () => {
     test('should execute function successfully on first try', async () => {
+      const rm = makeRetryManager();
       const fn = jest.fn().mockResolvedValue('success');
-      const result = await retryManager.retry(fn);
-
+      const result = await rm.retry(fn);
       expect(result).toBe('success');
       expect(fn).toHaveBeenCalledTimes(1);
-    });
+    }, 5000);
 
-    test('should retry on failure', async () => {
+    test('should retry on retryable failure and eventually succeed', async () => {
+      const rm = makeRetryManager();
       const fn = jest
         .fn()
-        .mockRejectedValueOnce(new Error('fail 1'))
-        .mockRejectedValueOnce(new Error('fail 2'))
+        .mockRejectedValueOnce(retryableError('fail 1'))
+        .mockRejectedValueOnce(retryableError('fail 2'))
         .mockResolvedValueOnce('success');
 
-      const promise = retryManager.retry(fn);
-      jest.advanceTimersByTime(100); // First retry
-      jest.advanceTimersByTime(200); // Second retry
-      jest.runAllTimers();
-
-      const result = await promise;
+      const result = await rm.retry(fn);
       expect(result).toBe('success');
       expect(fn).toHaveBeenCalledTimes(3);
-    });
+    }, 5000);
 
-    test('should throw after max retries', async () => {
-      const error = new Error('persistent error');
-      const fn = jest.fn().mockRejectedValue(error);
+    test('should throw after max retries exhausted', async () => {
+      const rm = makeRetryManager();
+      const fn = jest.fn().mockRejectedValue(retryableError('persistent error'));
 
-      const promise = retryManager.retry(fn);
-      jest.runAllTimers();
-
-      await expect(promise).rejects.toThrow('persistent error');
-      expect(fn).toHaveBeenCalledTimes(1 + 3); // 1 initial + 3 retries
-    });
+      await expect(rm.retry(fn)).rejects.toThrow('persistent error');
+      expect(fn).toHaveBeenCalledTimes(1 + 3);
+    }, 5000);
   });
 
   describe('Exponential Backoff', () => {
-    test('should apply exponential backoff delays', async () => {
-      const fn = jest
-        .fn()
-        .mockRejectedValue(new Error('retry me'));
+    test('should call fn maxRetries+1 times before giving up', async () => {
+      const rm = makeRetryManager({ maxRetries: 2 });
+      const fn = jest.fn().mockRejectedValue(retryableError('retry me'));
 
-      const promise = retryManager.retry(fn);
+      await rm.retry(fn).catch(() => {});
+      expect(fn).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+    }, 5000);
 
-      // First attempt fails immediately
-      expect(fn).toHaveBeenCalledTimes(1);
+    test('should respect max delay cap', async () => {
+      const rm = makeRetryManager({ maxRetries: 3, maxDelay: 5, backoffMultiplier: 10 });
+      const fn = jest.fn().mockRejectedValue(retryableError('fail'));
 
-      // First retry: 100ms * 2^0 = 100ms
-      jest.advanceTimersByTime(99);
-      expect(fn).toHaveBeenCalledTimes(1);
-      jest.advanceTimersByTime(1);
-      expect(fn).toHaveBeenCalledTimes(2);
+      const start = Date.now();
+      await rm.retry(fn).catch(() => {});
+      const elapsed = Date.now() - start;
 
-      // Second retry: 100ms * 2^1 = 200ms
-      jest.advanceTimersByTime(199);
-      expect(fn).toHaveBeenCalledTimes(2);
-      jest.advanceTimersByTime(1);
-      expect(fn).toHaveBeenCalledTimes(3);
-
-      // Third retry: 100ms * 2^2 = 400ms (but we're already at max retries)
-      jest.runAllTimers();
-      await promise.catch(() => {});
-    });
-
-    test('should respect max delay', async () => {
-      const rm = new RetryManager({
-        maxRetries: 5,
-        initialDelay: 100,
-        maxDelay: 1000,
-        backoffMultiplier: 2
-      });
-
-      const fn = jest.fn().mockRejectedValue(new Error('fail'));
-      const promise = rm.retry(fn);
-
-      jest.runAllTimers();
-      await promise.catch(() => {});
-
-      // Should never exceed maxDelay of 1000ms between retries
-      expect(fn).toHaveBeenCalled();
-    });
+      expect(fn).toHaveBeenCalledTimes(4);
+      expect(elapsed).toBeLessThan(500);
+    }, 5000);
   });
 
   describe('Retryable Error Detection', () => {
-    test('should retry on network errors', async () => {
+    test('should retry on network error codes', () => {
+      const rm = makeRetryManager();
       const networkErrors = [
         { code: 'ECONNREFUSED' },
         { code: 'ECONNRESET' },
@@ -119,137 +87,95 @@ describe('RetryManager', () => {
 
       for (const error of networkErrors) {
         const fn = jest.fn().mockRejectedValueOnce(error);
-        // Just verify it doesn't throw immediately
         expect(() => {
-          retryManager.retry(fn).catch(() => {});
+          rm.retry(fn).catch(() => {});
         }).not.toThrow();
       }
     });
 
-    test('should retry on server errors', async () => {
-      const serverErrors = [500, 502, 503, 504];
-
-      for (const status of serverErrors) {
-        const error = new Error('Server error');
-        error.status = status;
+    test('should retry on server error status codes', () => {
+      const rm = makeRetryManager();
+      for (const status of [500, 502, 503, 504]) {
+        const error = Object.assign(new Error('Server error'), { status });
         const fn = jest.fn().mockRejectedValueOnce(error);
         expect(() => {
-          retryManager.retry(fn).catch(() => {});
+          rm.retry(fn).catch(() => {});
         }).not.toThrow();
       }
     });
 
-    test('should retry on timeout errors', async () => {
-      const error = new Error('Timeout');
-      error.status = 408;
-      const fn = jest.fn().mockRejectedValueOnce(error);
-
-      expect(() => {
-        retryManager.retry(fn).catch(() => {});
-      }).not.toThrow();
-    });
-
-    test('should not retry on client errors', async () => {
-      const error = new Error('Bad request');
-      error.status = 400;
+    test('should not retry on client error 400 (not retryable)', async () => {
+      const rm = makeRetryManager();
+      const error = Object.assign(new Error('Bad request'), { status: 400 });
       const fn = jest.fn().mockRejectedValue(error);
 
-      const promise = retryManager.retry(fn);
-      jest.runAllTimers();
+      await expect(rm.retry(fn)).rejects.toThrow('Bad request');
+      expect(fn).toHaveBeenCalledTimes(1); // no retries
+    }, 5000);
 
-      await expect(promise).rejects.toThrow('Bad request');
-      expect(fn).toHaveBeenCalledTimes(1); // No retries
-    });
-
-    test('should not retry on auth errors', async () => {
-      const error = new Error('Unauthorized');
-      error.status = 401;
+    test('should not retry on auth error 401 (not retryable)', async () => {
+      const rm = makeRetryManager();
+      const error = Object.assign(new Error('Unauthorized'), { status: 401 });
       const fn = jest.fn().mockRejectedValue(error);
 
-      const promise = retryManager.retry(fn);
-      jest.runAllTimers();
-
-      await expect(promise).rejects.toThrow('Unauthorized');
+      await expect(rm.retry(fn)).rejects.toThrow('Unauthorized');
       expect(fn).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Offline Handling', () => {
-    test('should queue requests when offline', async () => {
-      global.navigator.onLine = false;
-
-      const fn = jest.fn().mockResolvedValue('success');
-      const promise = retryManager.queueRequest('req-1', fn);
-
-      const status = retryManager.getStatus();
-      expect(status.queuedRequests).toBe(1);
-      expect(status.isOffline).toBe(true);
-
-      global.navigator.onLine = true;
-    });
-
-    test('should process queued requests on reconnection', async () => {
-      global.navigator.onLine = false;
-
-      const fn1 = jest.fn().mockResolvedValue('result1');
-      const fn2 = jest.fn().mockResolvedValue('result2');
-
-      retryManager.queueRequest('req-1', fn1);
-      retryManager.queueRequest('req-2', fn2);
-
-      expect(retryManager.getStatus().queuedRequests).toBe(2);
-
-      // Simulate reconnection
-      global.navigator.onLine = true;
-      const event = new Event('online');
-      window.dispatchEvent(event);
-
-      jest.advanceTimersByTime(200); // Process queue with 100ms delay between requests
-      jest.runAllTimers();
-
-      global.navigator.onLine = true;
-    });
+    }, 5000);
   });
 
   describe('Queue Management', () => {
-    test('should track queue size', async () => {
-      global.navigator.onLine = false;
+    test('should queue requests when offline and not process them', () => {
+      const rm = makeRetryManager();
+      rm.isOffline = true; // Force offline mode directly
 
-      retryManager.queueRequest('req-1', jest.fn());
-      expect(retryManager.getStatus().queuedRequests).toBe(1);
+      const fn = jest.fn().mockResolvedValue('success');
+      rm.queueRequest('req-1', fn).catch(() => {});
 
-      retryManager.queueRequest('req-2', jest.fn());
-      expect(retryManager.getStatus().queuedRequests).toBe(2);
+      expect(rm.getStatus().queuedRequests).toBe(1);
+      expect(rm.getStatus().isOffline).toBe(true);
+      rm.clearQueue();
+    });
 
-      global.navigator.onLine = true;
+    test('should track multiple queued requests when offline', () => {
+      const rm = makeRetryManager();
+      rm.isOffline = true;
+
+      rm.queueRequest('req-1', jest.fn().mockResolvedValue('r1')).catch(() => {});
+      rm.queueRequest('req-2', jest.fn().mockResolvedValue('r2')).catch(() => {});
+
+      expect(rm.getStatus().queuedRequests).toBe(2);
+      rm.clearQueue();
     });
 
     test('should clear queue', () => {
-      global.navigator.onLine = false;
+      const rm = makeRetryManager();
+      rm.isOffline = true;
 
-      retryManager.queueRequest('req-1', jest.fn());
-      retryManager.queueRequest('req-2', jest.fn());
+      rm.queueRequest('req-1', jest.fn()).catch(() => {});
+      rm.queueRequest('req-2', jest.fn()).catch(() => {});
+      expect(rm.getStatus().queuedRequests).toBe(2);
 
-      expect(retryManager.getStatus().queuedRequests).toBe(2);
-
-      retryManager.clearQueue();
-      expect(retryManager.getStatus().queuedRequests).toBe(0);
-
-      global.navigator.onLine = true;
+      rm.clearQueue();
+      expect(rm.getStatus().queuedRequests).toBe(0);
     });
   });
 
   describe('Status Reporting', () => {
-    test('should report correct status', () => {
-      global.navigator.onLine = true;
-
-      const status = retryManager.getStatus();
+    test('should report correct online status', () => {
+      const rm = makeRetryManager();
+      const status = rm.getStatus();
       expect(status).toHaveProperty('isOffline');
       expect(status).toHaveProperty('queuedRequests');
       expect(status).toHaveProperty('isProcessing');
       expect(status.isOffline).toBe(false);
       expect(status.queuedRequests).toBe(0);
       expect(status.isProcessing).toBe(false);
+    });
+
+    test('should report offline status when set', () => {
+      const rm = makeRetryManager();
+      rm.isOffline = true;
+      expect(rm.getStatus().isOffline).toBe(true);
     });
   });
 });

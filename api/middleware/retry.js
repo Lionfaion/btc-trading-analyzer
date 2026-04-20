@@ -31,7 +31,7 @@ class RetryManager {
         console.warn(`⚠️ Request failed, retrying in ${waitTime}ms (attempt ${retries + 1}/${this.maxRetries})`);
 
         await new Promise(resolve => setTimeout(resolve, waitTime));
-        return this.retry(fn, retries + 1, delay);
+        return await this.retry(fn, retries + 1, delay);
       }
 
       throw error;
@@ -108,7 +108,8 @@ class RetryManager {
       504  // Gateway Timeout
     ];
 
-    return retryableCodes.includes(code) || !navigator.onLine;
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    return retryableCodes.includes(code) || isOffline;
   }
 
   /**
@@ -116,6 +117,7 @@ class RetryManager {
    * @private
    */
   _monitorConnection() {
+    if (typeof window === 'undefined') return;
     window.addEventListener('online', () => {
       this.isOffline = false;
       console.log('🌐 Connection restored');

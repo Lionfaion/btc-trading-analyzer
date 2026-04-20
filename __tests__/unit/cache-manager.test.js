@@ -3,11 +3,7 @@ describe('CacheManager', () => {
   let cache;
 
   beforeAll(() => {
-    // Load the CacheManager class from file
-    const fs = require('fs');
-    const code = fs.readFileSync('./lib/cache-manager.js', 'utf8');
-    // Extract just the class definition
-    eval(code.split('const globalCache')[0]);
+    CacheManager = require('./../../lib/cache-manager.js');
   });
 
   beforeEach(() => {

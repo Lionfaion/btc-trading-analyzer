@@ -1,6 +1,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const BacktestEngine = require('./lib/backtest-engine-server.js');
+const CoinGeckoClient = require('./public/lib/coingecko-client.js');
 
 const PORT = process.env.PORT || 8080;
 const publicPath = path.join(__dirname, 'public');
@@ -89,6 +91,39 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, strategyId: 'demo-1' }));
       return;
+    }
+
+    // Backtest execution
+    if (req.url === '/api/backtest/run' && req.method === 'POST') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      let rawBody = '';
+      req.on('data', chunk => rawBody += chunk);
+      req.on('end', async () => {
+        try {
+          const body = rawBody ? JSON.parse(rawBody) : {};
+          const { symbol = 'BTC', strategyType = 'MULTI_INDICATOR', initialBalance = 10000, riskPercentage = 2, days = 365 } = body;
+          const indicatorMap = { RSI_CROSSOVER: ['RSI'], MACD_CROSSOVER: ['MACD'], SMA_CROSSOVER: ['SMA'], MULTI_INDICATOR: ['RSI', 'MACD', 'BB'] };
+          const gecko = new CoinGeckoClient();
+          const candles = await gecko.getHistoricalCandles(symbol, days);
+          const engine = new BacktestEngine({ initialBalance, riskPercentage, indicators: indicatorMap[strategyType] || ['RSI', 'MACD', 'BB'] });
+          engine.loadCandles(candles);
+          const result = await engine.run();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, ...result, symbol, strategyType }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    // Backtest CRUD (in-memory demo)
+    if (req.url.startsWith('/api/db/backtests')) {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.method === 'GET') { res.writeHead(200); res.end(JSON.stringify({ success: true, backtests: [] })); return; }
+      if (req.method === 'POST') { res.writeHead(201); res.end(JSON.stringify({ success: true })); return; }
+      if (req.method === 'DELETE') { res.writeHead(200); res.end(JSON.stringify({ success: true })); return; }
     }
 
     // Serve static files
