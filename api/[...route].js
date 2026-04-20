@@ -196,6 +196,70 @@ async function handler(req, res) {
       });
     }
 
+    // Chart data endpoint — candles + RSI/MACD/BB indicators
+    if (section === 'chart' && action === 'data') {
+      const url = new URL(req.url, 'http://localhost');
+      const rawSymbol = (url.searchParams.get('symbol') || 'BTC').toUpperCase();
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '365'), 500);
+      const dbSymbol = rawSymbol.endsWith('USDT') ? rawSymbol : rawSymbol + 'USDT';
+
+      // 1. Try Supabase cache
+      const { data: dbCandles } = await supabase
+        .from('candles_ohlcv').select('*')
+        .eq('symbol', dbSymbol).eq('timeframe', '1d')
+        .order('open_time', { ascending: false }).limit(limit);
+
+      let rawCandles = (dbCandles || []).reverse();
+
+      // 2. Fallback: CoinGecko
+      if (rawCandles.length < 30) {
+        const gecko = new CoinGeckoClient();
+        rawCandles = await gecko.getHistoricalCandles(rawSymbol, limit);
+        if (rawCandles.length > 0) {
+          supabase.from('candles_ohlcv').upsert(
+            rawCandles.map(c => ({ ...c, symbol: dbSymbol })),
+            { onConflict: 'symbol,timeframe,open_time' }
+          ).then(() => {}).catch(() => {});
+        }
+      }
+
+      if (rawCandles.length === 0) {
+        return res.status(404).json({ success: false, error: 'No hay datos históricos disponibles' });
+      }
+
+      // 3. Format candles for TradingView (Unix seconds)
+      const candles = rawCandles.map(c => {
+        const ts = c.open_time || c.timestamp;
+        const t = ts ? Math.floor(new Date(ts).getTime() / 1000) : null;
+        return { time: t, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) };
+      }).filter(c => c.time && !isNaN(c.close));
+
+      // 4. Compute indicators using BacktestEngine
+      const eng = new BacktestEngine({ indicators: ['RSI', 'MACD', 'BB'] });
+      eng.loadCandles(rawCandles);
+
+      const rsiValues = [], macdValues = [], bbValues = [];
+      for (let i = 0; i < eng.candles.length; i++) {
+        const t = candles[i]?.time;
+        if (!t) continue;
+        const rsi = eng._rsi(i, 14);
+        if (rsi != null) rsiValues.push({ time: t, value: parseFloat(rsi.toFixed(2)) });
+        const macd = eng._macd(i);
+        if (macd != null) macdValues.push({ time: t, macd: parseFloat(macd.macd.toFixed(4)), signal: parseFloat(macd.signal.toFixed(4)), histogram: parseFloat(macd.histogram.toFixed(4)) });
+        const bb = eng._bb(i, 20);
+        if (bb != null) bbValues.push({ time: t, upper: parseFloat(bb.upper.toFixed(2)), middle: parseFloat(bb.middle.toFixed(2)), lower: parseFloat(bb.lower.toFixed(2)) });
+      }
+
+      return res.json({
+        success: true, symbol: rawSymbol, candleCount: candles.length, candles,
+        indicators: {
+          rsi: { values: rsiValues },
+          macd: { values: macdValues },
+          bollingerBands: { values: bbValues }
+        }
+      });
+    }
+
     // Health check
     if (section === 'health') {
       return res.json({ status: 'ok' });

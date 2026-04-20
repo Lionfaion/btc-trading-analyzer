@@ -128,16 +128,27 @@
 
         <div class="dashboard-grid">
           <!-- Left: Charts -->
-          <div class="chart-container glass-card">
-            <div class="card-header">
-              <h3>Precio BTC / USDT</h3>
-              <div class="timeframe-selector">
-                <button class="tf-btn active">1h</button>
-                <button class="tf-btn">4h</button>
-                <button class="tf-btn">1d</button>
+          <div class="chart-container glass-card" style="overflow:hidden;">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <h3 id="chart-symbol-label">BTC / USDT</h3>
+                <span id="chart-last-price" style="color:#00d9ff;font-size:18px;font-weight:700;"></span>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="asset-btn active" data-asset="BTC" style="padding:5px 10px;border-radius:6px;border:1px solid #00d9ff;background:rgba(0,217,255,0.15);color:#00d9ff;cursor:pointer;font-size:12px;">BTC</button>
+                <button class="asset-btn" data-asset="ETH" style="padding:5px 10px;border-radius:6px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;font-size:12px;">ETH</button>
+                <button class="asset-btn" data-asset="SOL" style="padding:5px 10px;border-radius:6px;border:1px solid #333;background:transparent;color:#aaa;cursor:pointer;font-size:12px;">SOL</button>
+                <button class="asset-btn" data-asset="XAU" style="padding:5px 10px;border-radius:6px;border:1px solid #ffb703;background:rgba(255,183,3,0.1);color:#ffb703;cursor:pointer;font-size:12px;">XAU</button>
               </div>
             </div>
-            <div id="chart" class="trading-chart"></div>
+            <!-- Main candle chart -->
+            <div id="chart-main" style="width:100%;height:340px;"></div>
+            <!-- RSI -->
+            <div style="padding:4px 12px;font-size:10px;color:#3b82f6;border-top:1px solid rgba(255,255,255,0.05);">RSI (14)</div>
+            <div id="chart-rsi" style="width:100%;height:100px;"></div>
+            <!-- MACD -->
+            <div style="padding:4px 12px;font-size:10px;color:#f59e0b;border-top:1px solid rgba(255,255,255,0.05);">MACD (12,26,9)</div>
+            <div id="chart-macd" style="width:100%;height:100px;"></div>
           </div>
 
           <!-- Right: Metrics Grid -->
@@ -617,6 +628,7 @@
 
   <!-- Configuration -->
   <script src="/lib/config.js"></script>
+  <script src="/lib/tradingview-init.js"></script>
 
   <!-- Core Libraries -->
   <script src="/lib/api-client.js"></script>
@@ -665,6 +677,26 @@
           console.log('Mode changed to:', mode);
         });
       });
+
+      // Initialize chart
+      if (typeof ChartSystem !== 'undefined') {
+        ChartSystem.init('BTC');
+
+        // Asset switcher
+        document.querySelectorAll('.asset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.asset-btn').forEach(b => {
+              b.style.background = 'transparent';
+              b.style.color = '#aaa';
+              b.style.borderColor = '#333';
+            });
+            btn.style.background = btn.dataset.asset === 'XAU' ? 'rgba(255,183,3,0.15)' : 'rgba(0,217,255,0.15)';
+            btn.style.color = btn.dataset.asset === 'XAU' ? '#ffb703' : '#00d9ff';
+            btn.style.borderColor = btn.dataset.asset === 'XAU' ? '#ffb703' : '#00d9ff';
+            ChartSystem.init(btn.dataset.asset);
+          });
+        });
+      }
 
       // Initialize UI Components
       if (typeof backtestPanel !== 'undefined') {
