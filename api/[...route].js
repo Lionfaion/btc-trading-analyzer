@@ -168,12 +168,84 @@ async function handler(req, res) {
       return res.json({ status: 'ok' });
     }
 
-    // DB endpoints - return empty data
+    // DB endpoints
     if (section === 'db') {
-      // const user = await getUser(req);
-      // if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      const user = await getUser(req);
+      if (!user) return res.status(401).json({ error: 'No autenticado' });
 
-      if (action === 'strategies') return res.json({ strategies: [] });
+      const body = await parseBody(req);
+
+      // Trades
+      if (action === 'trades') {
+        if (req.method === 'GET') {
+          const { data, error } = await supabase.from('trades').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true, trades: data || [] });
+        }
+        if (req.method === 'POST') {
+          const { data, error } = await supabase.from('trades').insert({ ...body, user_id: user.id }).select().single();
+          if (error) return res.status(500).json({ error: error.message });
+          return res.status(201).json({ success: true, trade: data });
+        }
+      }
+
+      // Trade by ID (PATCH)
+      const [dbAction, resourceId] = action ? action.split('/') : [];
+      if (dbAction === 'trades' && resourceId && req.method === 'PATCH') {
+        const { data, error } = await supabase.from('trades').update(body).eq('id', resourceId).eq('user_id', user.id).select().single();
+        if (error) return res.status(500).json({ error: error.message });
+        return res.json({ success: true, trade: data });
+      }
+
+      // Strategies
+      if (action === 'strategies') {
+        if (req.method === 'GET') {
+          const { data, error } = await supabase.from('strategies').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true, strategies: data || [] });
+        }
+        if (req.method === 'POST') {
+          const { data, error } = await supabase.from('strategies').insert({ ...body, user_id: user.id }).select().single();
+          if (error) return res.status(500).json({ error: error.message });
+          return res.status(201).json({ success: true, strategy: data });
+        }
+      }
+
+      // Candles (public read, authenticated write)
+      if (action === 'candles') {
+        if (req.method === 'GET') {
+          const url = new URL(req.url, 'http://localhost');
+          const symbol = url.searchParams.get('symbol') || 'BTCUSDT';
+          const timeframe = url.searchParams.get('timeframe') || '1h';
+          const limit = parseInt(url.searchParams.get('limit') || '100');
+          const { data, error } = await supabase.from('candles_ohlcv').select('*').eq('symbol', symbol).eq('timeframe', timeframe).order('open_time', { ascending: false }).limit(limit);
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true, candles: (data || []).reverse() });
+        }
+        if (req.method === 'POST') {
+          const { candles = [] } = body;
+          const { error } = await supabase.from('candles_ohlcv').upsert(candles, { onConflict: 'symbol,timeframe,open_time' });
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true, inserted: candles.length });
+        }
+      }
+
+      // Analysis history
+      if (action === 'analysis') {
+        if (req.method === 'GET') {
+          const url = new URL(req.url, 'http://localhost');
+          const limit = parseInt(url.searchParams.get('limit') || '50');
+          const { data, error } = await supabase.from('analysis_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(limit);
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true, analysis: data || [] });
+        }
+        if (req.method === 'POST') {
+          const { data, error } = await supabase.from('analysis_history').insert({ ...body, user_id: user.id }).select().single();
+          if (error) return res.status(500).json({ error: error.message });
+          return res.status(201).json({ success: true, analysis: data });
+        }
+      }
+
       if (action === 'backtests') return res.json({ backtests: [] });
       if (action === 'automation-jobs') return res.json({ automations: [] });
     }
