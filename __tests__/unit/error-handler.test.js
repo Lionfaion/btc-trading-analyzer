@@ -3,9 +3,7 @@ describe('ErrorHandler', () => {
   let handler;
 
   beforeAll(() => {
-    const fs = require('fs');
-    const code = fs.readFileSync('./lib/error-handler.js', 'utf8');
-    eval(code.split('const globalErrorHandler')[0]);
+    ErrorHandler = require('./../../lib/error-handler.js');
   });
 
   beforeEach(() => {
