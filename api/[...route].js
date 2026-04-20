@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { createCipheriv, createDecipheriv, randomBytes, createHash, createHmac } from 'crypto';
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const BacktestEngine = _require('../lib/backtest-engine-server.js');
+const CoinGeckoClient = _require('../public/lib/coingecko-client.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -275,7 +279,56 @@ async function handler(req, res) {
         }
       }
 
-      if (action === 'backtests') return res.json({ backtests: [] });
+      // Backtests CRUD (stored in analysis_history with analysis_type='backtest')
+      if (action === 'backtests') {
+        if (req.method === 'GET') {
+          const { data, error } = await supabase
+            .from('analysis_history')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('analysis_type', 'backtest')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (error) return res.status(500).json({ error: error.message });
+          const backtests = (data || []).map(row => ({
+            id: row.id,
+            symbol: row.symbol,
+            strategy: row.strategy_type,
+            roi: row.roi,
+            winRate: row.win_rate,
+            totalTrades: row.total_trades,
+            createdAt: row.created_at,
+            summary: row.result_data?.summary,
+            stats: row.result_data?.stats
+          }));
+          return res.json({ success: true, backtests });
+        }
+        if (req.method === 'POST') {
+          const { symbol, strategyType, summary, stats, trades, equityCurve } = body;
+          const { data, error } = await supabase.from('analysis_history').insert({
+            user_id: user.id,
+            analysis_type: 'backtest',
+            symbol: symbol || 'BTC',
+            strategy_type: strategyType,
+            roi: parseFloat(summary?.roi) || 0,
+            win_rate: parseFloat(summary?.winRate) || 0,
+            total_trades: summary?.totalTrades || 0,
+            result_data: { summary, stats, trades: trades?.slice(-50), equityCurve }
+          }).select().single();
+          if (error) return res.status(500).json({ error: error.message });
+          return res.status(201).json({ success: true, backtest: data });
+        }
+        if (req.method === 'DELETE') {
+          const url = new URL(req.url, 'http://localhost');
+          const id = url.searchParams.get('id');
+          if (!id) return res.status(400).json({ error: 'ID requerido' });
+          const { error } = await supabase.from('analysis_history').delete()
+            .eq('id', id).eq('user_id', user.id);
+          if (error) return res.status(500).json({ error: error.message });
+          return res.json({ success: true });
+        }
+      }
+
       if (action === 'automation-jobs') return res.json({ automations: [] });
     }
 
@@ -396,6 +449,55 @@ async function handler(req, res) {
 
         return res.json({ positions, count: positions.length });
       }
+    }
+
+    // Backtest execution endpoint
+    if (section === 'backtest' && action === 'run' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { symbol = 'BTC', strategyType = 'MULTI_INDICATOR', initialBalance = 10000, riskPercentage = 2, days = 365 } = body;
+
+      const indicatorMap = {
+        RSI_CROSSOVER: ['RSI'],
+        MACD_CROSSOVER: ['MACD'],
+        SMA_CROSSOVER: ['SMA'],
+        MULTI_INDICATOR: ['RSI', 'MACD', 'BB']
+      };
+      const indicators = indicatorMap[strategyType] || ['RSI', 'MACD', 'BB'];
+
+      // 1. Try DB cache first
+      const { data: cached } = await supabase
+        .from('candles_ohlcv')
+        .select('*')
+        .eq('symbol', symbol.toUpperCase())
+        .eq('timeframe', '1d')
+        .order('open_time', { ascending: true })
+        .limit(days);
+
+      let candles = cached || [];
+
+      // 2. Fetch from CoinGecko if not enough data
+      if (candles.length < 30) {
+        const gecko = new CoinGeckoClient();
+        candles = await gecko.getHistoricalCandles(symbol, days);
+
+        // Cache in Supabase (fire-and-forget)
+        if (candles.length > 0) {
+          supabase.from('candles_ohlcv').upsert(
+            candles.map(c => ({ ...c, symbol: symbol.toUpperCase() })),
+            { onConflict: 'symbol,timeframe,open_time' }
+          ).then(() => {}).catch(() => {});
+        }
+      }
+
+      if (candles.length < 30) {
+        return res.status(422).json({ error: 'No hay suficientes datos históricos' });
+      }
+
+      const engine = new BacktestEngine({ initialBalance, riskPercentage, indicators });
+      engine.loadCandles(candles);
+      const result = await engine.run();
+
+      return res.json({ success: true, ...result, symbol, strategyType });
     }
 
     res.status(404).json({ error: 'Endpoint not found' });
