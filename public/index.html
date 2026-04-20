@@ -262,6 +262,56 @@
             </div>
           </div>
 
+          <!-- Automation Panel -->
+          <div class="glass-card full-width">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+              <h3>🤖 Automatización de Estrategias</h3>
+              <button class="btn-secondary" id="showAutoFormBtn" style="padding:6px 14px;font-size:13px;">+ Nueva</button>
+            </div>
+
+            <!-- Enable form (hidden by default) -->
+            <div id="autoEnableForm" style="display:none;border-top:1px solid rgba(255,255,255,0.08);padding-top:15px;margin-top:10px;">
+              <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+                <div class="form-group">
+                  <label>Símbolo</label>
+                  <select class="neon-input" id="autoSymbol">
+                    <option value="BTCUSDT">BTC/USDT</option>
+                    <option value="ETHUSDT">ETH/USDT</option>
+                    <option value="SOLUSDT">SOL/USDT</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Estrategia</label>
+                  <select class="neon-input" id="autoStrategy">
+                    <option value="MULTI_INDICATOR">Multi Indicador</option>
+                    <option value="RSI_CROSSOVER">RSI Crossover</option>
+                    <option value="MACD_CROSSOVER">MACD Crossover</option>
+                    <option value="SMA_CROSSOVER">SMA Crossover</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Modo</label>
+                  <select class="neon-input" id="autoDemoMode">
+                    <option value="true">Demo (sin órdenes reales)</option>
+                    <option value="false">Real (requiere Bybit)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:10px;">
+                <button class="btn-primary" id="autoEnableBtn" style="flex:1;">Activar Automatización</button>
+                <button class="btn-secondary" onclick="document.getElementById('autoEnableForm').style.display='none'" style="padding:8px 16px;">Cancelar</button>
+              </div>
+            </div>
+
+            <!-- Active jobs list -->
+            <div id="activeAutomations" style="margin-top:12px;">
+              <p style="color:#888;text-align:center;font-size:13px;">Cargando automatizaciones...</p>
+            </div>
+
+            <!-- Signal check result -->
+            <div id="autoSignalResult" style="margin-top:10px;display:none;"></div>
+          </div>
+
           <!-- Order Form -->
           <div class="glass-card full-width">
             <div class="card-header">
@@ -659,6 +709,115 @@
           }
         });
       }
+
+      // Automation UI logic
+      (function initAutomation() {
+        const _apiBase = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) ? CONFIG.API_BASE_URL : '';
+        const _headers = () => {
+          const t = localStorage.getItem('authToken') || localStorage.getItem('sb-token') || '';
+          return { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) };
+        };
+
+        async function loadJobs() {
+          const el = document.getElementById('activeAutomations');
+          if (!el) return;
+          try {
+            const r = await fetch(_apiBase + '/api/db/automation-jobs', { headers: _headers() });
+            const d = await r.json();
+            const jobs = d.automations || d.jobs || [];
+            if (jobs.length === 0) {
+              el.innerHTML = '<p style="color:#888;text-align:center;font-size:13px;">Sin automatizaciones activas. Crea una con el botón +</p>';
+            } else {
+              el.innerHTML = jobs.map(j => {
+                const lastRun = j.last_run ? new Date(j.last_run).toLocaleString('es-ES') : 'Nunca';
+                const strat = j.strategies?.parameters?.strategy_type || j.strategies?.name || '—';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid rgba(0,217,255,0.15);border-radius:8px;margin-bottom:8px;">
+                  <div>
+                    <span style="color:#00d9ff;font-weight:600;">${j.symbol}</span>
+                    <span style="color:#aaa;font-size:12px;margin-left:10px;">${strat}</span>
+                    <br><span style="color:#666;font-size:11px;">Última señal: ${lastRun}</span>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button onclick="runSignalCheck('${j.id}')" style="background:rgba(0,217,255,0.1);border:1px solid #00d9ff;color:#00d9ff;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:12px;">▶ Check</button>
+                    <button onclick="disableJob('${j.id}')" style="background:rgba(255,0,110,0.1);border:1px solid #ff006e;color:#ff006e;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:12px;">✕</button>
+                  </div>
+                </div>`;
+              }).join('');
+            }
+          } catch (e) {
+            el.innerHTML = '<p style="color:#888;text-align:center;font-size:13px;">Inicia sesión para ver automatizaciones</p>';
+          }
+        }
+
+        window.runSignalCheck = async function(jobId) {
+          const res = document.getElementById('autoSignalResult');
+          res.style.display = 'block';
+          res.innerHTML = '<p style="color:#00d9ff;">⏳ Analizando señal...</p>';
+          try {
+            const r = await fetch(_apiBase + '/api/automation/execute', {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ jobId, demoMode: true })
+            });
+            const d = await r.json();
+            const result = d.results?.[0];
+            if (!result) throw new Error('Sin resultado');
+            const color = result.signal === 'BUY' ? '#4caf50' : result.signal === 'SELL' ? '#ff6666' : '#aaa';
+            res.innerHTML = `<div style="padding:10px;border:1px solid ${color};border-radius:8px;background:${color}22;">
+              <strong style="color:${color};">${result.signal}</strong>
+              <span style="color:#aaa;margin-left:10px;">${result.symbol} @ $${result.price?.toLocaleString()}</span>
+              ${result.signal !== 'HOLD' ? `<span style="color:#aaa;font-size:12px;margin-left:10px;">(Modo demo — sin orden real)</span>` : ''}
+            </div>`;
+            await loadJobs();
+          } catch (e) {
+            res.innerHTML = `<p style="color:#ff6666;">Error: ${e.message}</p>`;
+          }
+        };
+
+        window.disableJob = async function(jobId) {
+          if (!confirm('¿Desactivar esta automatización?')) return;
+          await fetch(_apiBase + '/api/automation/disable', {
+            method: 'POST', headers: _headers(),
+            body: JSON.stringify({ jobId })
+          });
+          await loadJobs();
+        };
+
+        const showBtn = document.getElementById('showAutoFormBtn');
+        if (showBtn) showBtn.addEventListener('click', () => {
+          document.getElementById('autoEnableForm').style.display = 'block';
+        });
+
+        const enableBtn = document.getElementById('autoEnableBtn');
+        if (enableBtn) enableBtn.addEventListener('click', async () => {
+          const symbol = document.getElementById('autoSymbol').value;
+          const strategyType = document.getElementById('autoStrategy').value;
+          const demoMode = document.getElementById('autoDemoMode').value === 'true';
+          enableBtn.disabled = true; enableBtn.textContent = 'Activando...';
+          try {
+            const r = await fetch(_apiBase + '/api/automation/enable', {
+              method: 'POST', headers: _headers(),
+              body: JSON.stringify({ symbol, strategyType, demoMode })
+            });
+            const d = await r.json();
+            if (d.success) {
+              document.getElementById('autoEnableForm').style.display = 'none';
+              await loadJobs();
+            } else {
+              alert(d.error || 'Error activando automatización');
+            }
+          } catch (e) { alert(e.message); }
+          finally { enableBtn.disabled = false; enableBtn.textContent = 'Activar Automatización'; }
+        });
+
+        // Load jobs when live-trading section is shown
+        document.querySelectorAll('.nav-item').forEach(item => {
+          item.addEventListener('click', () => {
+            if (item.dataset.section === 'live-trading') loadJobs();
+          });
+        });
+
+        loadJobs();
+      })();
 
       // Initialize Anthropic API Key handler
       initializeAnthropicApiKey();

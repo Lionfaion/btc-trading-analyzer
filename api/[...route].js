@@ -329,7 +329,169 @@ async function handler(req, res) {
         }
       }
 
-      if (action === 'automation-jobs') return res.json({ automations: [] });
+      // Automation jobs list
+      if (action === 'automation-jobs') {
+        const { data, error } = await supabase
+          .from('automation_jobs')
+          .select('*, strategies(name, parameters)')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (error) return res.status(500).json({ error: error.message });
+        return res.json({ success: true, automations: data || [] });
+      }
+    }
+
+    // Automation action endpoints
+    if (section === 'automation') {
+      const body = await parseBody(req);
+      const user = await getUser(req);
+      if (!user) return res.status(401).json({ error: 'No autenticado' });
+
+      // Enable automation job
+      if (action === 'enable' && req.method === 'POST') {
+        const { strategyType = 'MULTI_INDICATOR', symbol = 'BTCUSDT', demoMode = true } = body;
+
+        // Find or create a strategy record for this type
+        let strategyId = null;
+        const { data: existing } = await supabase
+          .from('strategies')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', strategyType)
+          .single();
+
+        if (existing) {
+          strategyId = existing.id;
+        } else {
+          const { data: created } = await supabase.from('strategies').insert({
+            user_id: user.id,
+            name: strategyType,
+            description: `Estrategia automática: ${strategyType}`,
+            parameters: { strategy_type: strategyType, demo_mode: demoMode }
+          }).select('id').single();
+          if (created) strategyId = created.id;
+        }
+
+        // Upsert automation job
+        const { data: job, error: jobErr } = await supabase
+          .from('automation_jobs')
+          .upsert({
+            user_id: user.id,
+            strategy_id: strategyId,
+            symbol: symbol.toUpperCase(),
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id,symbol' })
+          .select()
+          .single();
+
+        if (jobErr) return res.status(500).json({ error: jobErr.message });
+        return res.json({ success: true, message: `Automatización activada para ${symbol}`, job });
+      }
+
+      // Disable automation job
+      if (action === 'disable' && req.method === 'POST') {
+        const { symbol, jobId } = body;
+        let query = supabase.from('automation_jobs')
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('user_id', user.id);
+        if (jobId) query = query.eq('id', jobId);
+        else if (symbol) query = query.eq('symbol', symbol.toUpperCase());
+        const { error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+        return res.json({ success: true, message: 'Automatización desactivada' });
+      }
+
+      // Execute strategy signal check + optional order placement
+      if (action === 'execute' && req.method === 'POST') {
+        const { jobId, demoMode = true } = body;
+
+        // Get active jobs for this user
+        let q = supabase.from('automation_jobs')
+          .select('*, strategies(name, parameters)')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+        if (jobId) q = q.eq('id', jobId);
+        const { data: jobs, error: jobsErr } = await q;
+        if (jobsErr) return res.status(500).json({ error: jobsErr.message });
+
+        const results = [];
+        for (const job of (jobs || [])) {
+          const strategyType = job.strategies?.parameters?.strategy_type || 'MULTI_INDICATOR';
+
+          // Fetch recent candles (DB cache first)
+          const { data: dbCandles } = await supabase
+            .from('candles_ohlcv')
+            .select('*')
+            .eq('symbol', job.symbol)
+            .eq('timeframe', '1d')
+            .order('open_time', { ascending: false })
+            .limit(60);
+
+          let candles = (dbCandles || []).reverse();
+          if (candles.length < 14) {
+            const gecko = new CoinGeckoClient();
+            candles = await gecko.getHistoricalCandles(job.symbol, 60);
+          }
+
+          if (candles.length < 14) {
+            results.push({ jobId: job.id, signal: 'ERROR', error: 'Sin datos históricos' });
+            continue;
+          }
+
+          const signal = BacktestEngine.detectCurrentSignal(candles, strategyType);
+          const currentPrice = candles[candles.length - 1].close;
+
+          // Update last_run
+          await supabase.from('automation_jobs')
+            .update({ last_run: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq('id', job.id);
+
+          if (signal === 'HOLD') {
+            results.push({ jobId: job.id, signal, symbol: job.symbol, price: currentPrice });
+            continue;
+          }
+
+          // Attempt real order if not demo mode
+          let orderResult = null;
+          if (!demoMode) {
+            const { data: creds } = await supabase
+              .from('bybit_credentials')
+              .select('*')
+              .eq('user_id', user.id)
+              .single();
+
+            if (creds) {
+              const apiKey = decryptAES(creds.api_key_encrypted);
+              const apiSecret = decryptAES(creds.api_secret_encrypted);
+              orderResult = await bybitRequest(apiKey, apiSecret, creds.is_testnet, 'POST', '/v5/order/create', {
+                category: 'spot',
+                symbol: job.symbol,
+                side: signal === 'BUY' ? 'Buy' : 'Sell',
+                orderType: 'Market',
+                qty: '0.001'
+              });
+            }
+          }
+
+          // Record trade
+          await supabase.from('trades').insert({
+            user_id: user.id,
+            symbol: job.symbol,
+            side: signal,
+            price: currentPrice,
+            quantity: 0.001,
+            order_type: 'MARKET',
+            status: demoMode ? 'DEMO' : (orderResult?.retCode === 0 ? 'FILLED' : 'FAILED'),
+            notes: JSON.stringify({ automationJobId: job.id, strategyType, demoMode })
+          });
+
+          results.push({ jobId: job.id, signal, symbol: job.symbol, price: currentPrice, demoMode, order: orderResult });
+        }
+
+        return res.json({ success: true, results, executedAt: new Date().toISOString() });
+      }
     }
 
     // Bybit endpoints

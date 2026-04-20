@@ -65,7 +65,39 @@ const server = http.createServer((req, res) => {
 
     if (req.url === '/api/db/automation-jobs') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ automations: [] }));
+      res.end(JSON.stringify({ success: true, automations: [] }));
+      return;
+    }
+
+    // Automation endpoints (local dev stubs)
+    if (req.url.startsWith('/api/automation/') && req.method === 'POST') {
+      const action = req.url.split('/')[3];
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      let rawBody = '';
+      req.on('data', c => rawBody += c);
+      req.on('end', async () => {
+        const body = rawBody ? JSON.parse(rawBody) : {};
+        if (action === 'enable') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `Automatización activada para ${body.symbol}` }));
+        } else if (action === 'disable') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Desactivada' }));
+        } else if (action === 'execute') {
+          try {
+            const gecko = new CoinGeckoClient();
+            const symbol = body.symbol || 'BTC';
+            const candles = await gecko.getHistoricalCandles(symbol, 60);
+            const signal = BacktestEngine.detectCurrentSignal(candles, body.strategyType || 'MULTI_INDICATOR');
+            const price = candles[candles.length - 1]?.close || 0;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, results: [{ jobId: 'demo', signal, symbol, price, demoMode: true }], executedAt: new Date().toISOString() }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: e.message }));
+          }
+        }
+      });
       return;
     }
 
